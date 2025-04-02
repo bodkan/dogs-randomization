@@ -248,6 +248,7 @@ abline(v = obs_count)
 # compute the empirical CDF
 e <- ecdf(counts)
 plot(e)
+abline(v = obs_count)
 
 # what's the probability of observing a value as extreme (or more extreme)
 # than the value we observed?
