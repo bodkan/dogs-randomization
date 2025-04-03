@@ -1,5 +1,5 @@
-1. Clone the repository
-2. Open R in the directory with the cloned project.
+1. Clone the repository with `git clone https://github.com/bodkan/dogs-bootstrapping`
+2. Run `cd` into the directory with the cloned project and start R in it.
 3. R will automatically download renv.
 4. Call `renv::restore()` which should download the package dependencies used.
 
