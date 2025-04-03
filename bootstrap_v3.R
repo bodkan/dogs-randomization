@@ -102,25 +102,24 @@ ggplot(roh_counts) +
 ###############################################################
 
 # 1. take a list of windows for each individual as a GRanges object and
-# shuffle just the `roh` column in each of them, returning back
+# shuffle just the `coverage` column in each of them, returning back
 # GRanges object modified in this way
 shuffle_windows <- function(windows) {
   shuffled_windows <- lapply(windows, function(ind) {
-    ind$roh <- sample(ind$roh)
+    ind$coverage <- sample(ind$coverage)
     ind
   })
 
   return(shuffled_windows)
 }
 
-# 2. convert a list of GRanges windows (one GRanges object per individual) into
-# one merged data frame (one column of TRUE/FALSE for a windows per individual)
+# 2. convert a list of GRanges windows containing the ROH coverages (one
+# GRanges object per individual) into one merged data frame (one column
+# of coverage values for a windows per individual)
 merge_windows <- function(windows) {
-  # from each reshuffled individual, take just the TRUE/FALSE vector
-  # of the windows hitting an ROH
+  # from each reshuffled individual, take just the vector of ROH coverages
   df <- lapply(windows, function(ind) {
-    ind_df <- as_tibble(mcols(ind)["roh"])
-    ind_df$roh <- as.integer(ind_df$roh)
+    ind_df <- as_tibble(mcols(ind)["coverage"])
     names(ind_df) <- ind$sample[1]
     ind_df
   }) %>% do.call(cbind, .) %>%
@@ -133,11 +132,11 @@ merge_windows <- function(windows) {
 # the merged data frame, either a set of ancient individuals or a set of
 # modern individuals, specified upon calling the function)
 detect_deserts <- function(df, cutoff) {
-  freq <- rowMeans(df)
+  avg_coverages <- rowMeans(df)
 
   # flag each window as a desert or not
   cutoff <- 0.05
-  deserts <- freq < cutoff
+  deserts <- avg_coverages < cutoff
 
   return(deserts)
 }
@@ -146,41 +145,53 @@ detect_deserts <- function(df, cutoff) {
 # sanity checking the desert inference in the original data
 ###############################################################
 
-# Let's apply step 2. (merging the per-individual window-ROH hits) and
+# Let's apply step 2. (merging the per-individual window-ROH coverages) and
 # 3. (detecting deserts) on the original, non-shuffled data. This should
 # produce counts of shared ancient-vs-modern deserts similar to the
 # original analysis prior to the review.
 
 # 2. merge the window-ROH hits into a single data frame
-df <- merge_windows(windows)
+df <- merge_windows(coverages)
 df
 
 # 3. detect deserts in ancient and modern samples
 deserts_ancient <- detect_deserts(df[, ancient_samples], cutoff = 0.05)
 deserts_modern <- detect_deserts(df[, modern_samples], cutoff = 0.05)
 
+sum(deserts_ancient)
+# 2757
+sum(deserts_modern)
+# 228
+
 # count which windows represent a shared A vs M desert
 shared_deserts <- deserts_ancient & deserts_modern
 sum(shared_deserts)
-# --> 53
+# --> 172
 
 # For debugging purposes, add frequencies of ROH overlapping each
 # desert (in ancient and modern individuals) to the original table of windows
 original_win <- win_gr
-original_win$freq_ancient <- rowMeans(df[, ancient_samples])
-original_win$freq_modern <- rowMeans(df[, modern_samples])
+original_win$cov_ancient <- rowMeans(df[, ancient_samples])
+original_win$cov_modern <- rowMeans(df[, modern_samples])
 original_win$desert <- shared_deserts
-original_win$desert %>% sum
 original_win
 
-# just the deserts in modern individuals
-original_win[original_win$freq_modern < 0.05]
-
 # just the deserts in ancient individuals
-original_win[original_win$freq_ancient < 0.05]
+original_win[original_win$cov_ancient < 0.05]
+
+# just the deserts in modern individuals
+original_win[original_win$cov_modern < 0.05]
 
 # deserts in both ancient and modern individuals
 original_win[original_win$desert]
+
+
+
+
+
+
+
+
 
 ###############################################################
 # bootstrapping begins here
