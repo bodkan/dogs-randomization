@@ -78,8 +78,6 @@ assign_sites <- function(sites_gr, win_gr) {
   return(sites_gr)
 }
 
-sites_gr <- assign_sites(sites_gr, win_gr)
-
 # Score each site in a given individual as TRUE or FALSE depending on
 # whether or not it overlaps with ROH
 sites_coverage <- function(samples, sites_gr, roh_gr) {
@@ -115,9 +113,13 @@ sites_coverage <- function(samples, sites_gr, roh_gr) {
   return(hits_gr)
 }
 
+# assign a window number to each site
+sites_gr <- assign_sites(sites_gr, win_gr)
+
 # detect TRUE or FALSE for each site in each individual depending on whether or
 # not a given site overlaps an ROH in that individual
 coverages <- sites_coverage(all_samples, sites_gr, roh_gr)
+saveRDS(coverages, "coverages.rds")
 
 # a couple of sanity checks:
 
