@@ -23,13 +23,13 @@ win_gr
 # ROH in modern samples
 modern_gr <- fread("data/ref-panel_allchrom_sample-snp_filltags_filter_MAF_0.01_all_sites_hom_win_het_1_dogs.hom")
 modern_gr <- tibble(modern_gr) %>% select(sample = FID, chrom = CHR, start = POS1, end = POS2)
-modern_gr$set <- "M"
+modern_gr$set <- "modern"
 modern_gr
 
 # ROH in ancient samples
 ancient_gr <- fread("data/merged_phased_annotated.allchrom_MAF_0.01_recalibrated_INFO_0.8_all_sites_hom_win_het_1_dogs.hom")
 ancient_gr <- tibble(ancient_gr) %>% select(sample = FID, chrom = CHR, start = POS1, end = POS2)
-ancient_gr$set <- "A"
+ancient_gr$set <- "ancient"
 ancient_gr
 
 # combine ROH sets into a single GRanges object
@@ -51,9 +51,9 @@ merged_sites <- left_join(modern_sites, ancient_sites, by = c("chrom", "pos")) %
 sites_gr <- makeGRangesFromDataFrame(merged_sites, keep.extra.columns = TRUE, start.field = "pos", end.field = "pos")
 
 # extract sample names for later use
-ancient_samples <- unique(roh_gr[roh_gr$set == "A"]$sample)
+ancient_samples <- unique(roh_gr[roh_gr$set == "ancient"]$sample)
 ancient_samples
-modern_samples <- unique(roh_gr[roh_gr$set == "M"]$sample)
+modern_samples <- unique(roh_gr[roh_gr$set == "modern"]$sample)
 modern_samples
 
 all_samples <- c(ancient_samples, modern_samples)
@@ -63,9 +63,8 @@ all_samples
 # detecting windows overlapping ROH in each individual
 ###############################################################
 
-
 # assign each SNP to a window
-score_sites <- function(sites_gr, win_gr) {
+assign_sites <- function(sites_gr, win_gr) {
   # find which window overla each SNP
   hits <- findOverlaps(sites_gr, win_gr)
 
@@ -79,34 +78,46 @@ score_sites <- function(sites_gr, win_gr) {
   return(sites_gr)
 }
 
-sites_gr <- score_sites(sites_gr, win_gr)
+sites_gr <- assign_sites(sites_gr, win_gr)
 
-# for a given individual ind, score each SNP as TRUE or
-# FALSE depending on whether it overlaps an ROH in that sample
-sites_coverage <- function(ind, roh_gr, sites_gr) {
-  # extract ROHs only in the given individual
-  ind_roh_gr <- roh_gr[roh_gr$sample == ind]
+# Score each site in a given individual as TRUE or FALSE depending on
+# whether or not it overlaps with ROH
+sites_coverage <- function(samples, sites_gr, roh_gr) {
+  # make a copy of site coordinates only
+  hits_gr <- granges(sites_gr)
+  hits_gr$win_i <- sites_gr$win_i
 
-  set <- ind_roh_gr$set[1]
+  for (i in seq_along(samples)) {
+    ind <- samples[i]
 
-  # create a window set just for that individual (and initialize
-  # with additional column)
-  ind_sites_gr <- sites_gr[sites_gr$set == set]
-  ind_sites_gr$sample <- ind
-  ind_sites_gr$set <- set
+    # extract ROHs only in the given individual
+    ind_roh_gr <- roh_gr[roh_gr$sample == ind]
 
-  # find which windows hit at least one ROH in that individual
-  ind_sites_gr$roh <- FALSE
-  hits <- findOverlaps(ind_sites_gr, ind_roh_gr)
-  ind_sites_gr[queryHits(hits)]$roh <- TRUE
+    # extract the flag for whether that individual is ancient or modern
+    set <- ind_roh_gr$set[1]
 
-  # return the ROH-scored sites in that individual
-  return(ind_sites_gr)
+    cat(sprintf("Processing %s (%s) [%s/%s]\n", ind, set, i, length(samples)))
+
+    # take a respective subset of all sites (either ancient set or modern set)
+    subset <- mcols(sites_gr)[[set]]
+
+    # detect which sites in this individual overlap with an ROH -- a site
+    # in the overall data set will be either TRUE or FALSE (depending on whether
+    # or not it overlaps or ROH) or NA (if its a site only available in the modern
+    # set but an ancient individual is being currently processed)
+    roh_hits <- rep(FALSE, length(sites_gr[subset]))
+    hits <- findOverlaps(sites_gr[subset], ind_roh_gr)
+    roh_hits[queryHits(hits)] <- TRUE
+    mcols(hits_gr)[[ind]] <- rep(NA, length(hits_gr))
+    mcols(hits_gr[subset])[[ind]] <- roh_hits
+  }
+
+  return(hits_gr)
 }
 
-# score each original window in each sample in the original data
-# with the proportion of ROH it is covered by (in that individual)
-coverages <- mclapply(all_samples[1:50], function(ind) sites_coverage(ind, roh_gr, sites_gr), mc.cores = detectCores())
+# detect TRUE or FALSE for each site in each individual depending on whether or
+# not a given site overlaps an ROH in that individual
+coverages <- sites_coverage(all_samples, sites_gr, roh_gr)
 
 # a couple of sanity checks:
 
