@@ -7,7 +7,6 @@ library(tibble)
 library(readr)
 library(parallel)
 library(GenomicRanges)
-library(windowscanr)
 
 ###############################################################
 # read all input data
@@ -80,7 +79,10 @@ assign_sites <- function(sites_gr, win_gr) {
 }
 
 # Score each site in a given individual as TRUE or FALSE depending on
-# whether or not it overlaps with ROH
+# whether or not it overlaps with ROH. This code is probably terribly
+# inefficient but works as long as its run with a machine with a huge
+# amount of RAM (I haven't benchmarked this, but ran it on a 750 Gb RAM
+# number cruncher server).
 sites_coverage <- function(samples, sites_gr, roh_gr) {
   hits_inds <- mclapply(seq_along(samples), function(i) {
     ind <- samples[i]
@@ -106,11 +108,8 @@ sites_coverage <- function(samples, sites_gr, roh_gr) {
   }, mc.cores = detectCores())
   names(hits_inds) <- samples
 
-  hits_df <- as_tibble(sites_gr) %>%
-    select(chrom = seqnames, pos = start, modern, ancient, win_i) %>%
-    mutate(chrom = as.integer(chrom)) %>%
-    cbind(do.call(cbind, hits_inds)) %>%
-    as_tibble
+  sites_df <- as.data.table(sites_gr)[, .(chrom = seqnames, pos = start, win_i, modern, ancient)]
+  hits_df <- cbind(sites_df, as.data.table(hits_inds))
 
   return(hits_df)
 }
@@ -120,8 +119,8 @@ sites_gr <- assign_sites(sites_gr, win_gr)
 
 # detect TRUE or FALSE for each site in each individual depending on whether or
 # not a given site overlaps an ROH in that individual
-coverages <- sites_coverage(all_samples, sites_gr, roh_gr)
-saveRDS(coverages, "coverages.rds")
+cov_df <- sites_coverage(all_samples, sites_gr, roh_gr)
+saveRDS(cov_df, "cov_df.rds")
 
 
 # 3. just a visual test that the # of ROHs in ancient vs modern match our expectation
