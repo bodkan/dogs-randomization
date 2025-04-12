@@ -1,5 +1,6 @@
 library(data.table)
 library(R.utils)
+library(qs)
 library(ggplot2)
 library(dplyr)
 library(tidyr)
@@ -119,9 +120,12 @@ sites_gr <- assign_sites(sites_gr, win_gr)
 
 # detect TRUE or FALSE for each site in each individual depending on whether or
 # not a given site overlaps an ROH in that individual
-cov_df <- sites_coverage(all_samples, sites_gr, roh_gr)
-saveRDS(cov_df, "cov_df.rds")
-
+if (!file.exists("cov_df.qs")) {
+  cov_df <- sites_coverage(all_samples, sites_gr, roh_gr)
+  qsave(cov_df, "cov_df.qs", preset = "high")
+} else {
+  cov_df <- qread("cov_df.qs")
+}
 
 # 3. just a visual test that the # of ROHs in ancient vs modern match our expectation
 roh_counts <- lapply(coverages, function(ind) {
