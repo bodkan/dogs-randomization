@@ -81,18 +81,11 @@ assign_sites <- function(sites_gr, win_gr) {
 # Score each site in a given individual as TRUE or FALSE depending on
 # whether or not it overlaps with ROH
 sites_coverage <- function(samples, sites_gr, roh_gr) {
-  # make a copy of site coordinates only
-  hits_gr <- granges(sites_gr)
-  hits_gr$win_i <- sites_gr$win_i
-
-  for (i in seq_along(samples)) {
+  hits_inds <- mclapply(seq_along(samples), function(i) {
     ind <- samples[i]
 
-    # extract ROHs only in the given individual
-    ind_roh_gr <- roh_gr[roh_gr$sample == ind]
-
     # extract the flag for whether that individual is ancient or modern
-    set <- ind_roh_gr$set[1]
+    set <- roh_gr[roh_gr$sample == ind]$set[1]
 
     cat(sprintf("Processing %s (%s) [%s/%s]\n", ind, set, i, length(samples)))
 
@@ -103,14 +96,22 @@ sites_coverage <- function(samples, sites_gr, roh_gr) {
     # in the overall data set will be either TRUE or FALSE (depending on whether
     # or not it overlaps or ROH) or NA (if its a site only available in the modern
     # set but an ancient individual is being currently processed)
-    roh_hits <- rep(FALSE, length(sites_gr[subset]))
-    hits <- findOverlaps(sites_gr[subset], ind_roh_gr)
-    roh_hits[queryHits(hits)] <- TRUE
-    mcols(hits_gr)[[ind]] <- rep(NA, length(hits_gr))
-    mcols(hits_gr[subset])[[ind]] <- roh_hits
-  }
+    roh_hits <- rep(NA, length(subset))
+    hits <- findOverlaps(sites_gr[subset], roh_gr[roh_gr$sample == ind])
+    roh_hits[subset][queryHits(hits)] <- TRUE
+    roh_hits[subset][-queryHits(hits)] <- FALSE
 
-  return(hits_gr)
+    roh_hits
+  }, mc.cores = detectCores())
+  names(hits_inds) <- samples
+
+  hits_df <- as_tibble(sites_gr) %>%
+    select(chrom = seqnames, pos = start, modern, ancient, win_i) %>%
+    mutate(chrom = as.integer(chrom)) %>%
+    cbind(do.call(cbind, hits_inds)) %>%
+    as_tibble
+
+  return(hits_df)
 }
 
 # assign a window number to each site
@@ -121,13 +122,6 @@ sites_gr <- assign_sites(sites_gr, win_gr)
 coverages <- sites_coverage(all_samples, sites_gr, roh_gr)
 saveRDS(coverages, "coverages.rds")
 
-# a couple of sanity checks:
-
-# 1. the number of SNPs in each sample must be the same
-sapply(coverages, length) %>% unique
-
-# 2. the number of ancient and modern samples must be matching the original data
-sapply(coverages, function(ind) unique(ind$set)) %>% table
 
 # 3. just a visual test that the # of ROHs in ancient vs modern match our expectation
 roh_counts <- lapply(coverages, function(ind) {
