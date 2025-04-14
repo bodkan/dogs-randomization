@@ -1,4 +1,6 @@
 library(data.table)
+library(R.utils)
+library(qs)
 library(ggplot2)
 library(dplyr)
 library(tidyr)
@@ -6,7 +8,6 @@ library(tibble)
 library(readr)
 library(parallel)
 library(GenomicRanges)
-library(windowscanr)
 
 ###############################################################
 # read all input data
@@ -60,10 +61,10 @@ all_samples <- c(ancient_samples, modern_samples)
 all_samples
 
 ###############################################################
-# detecting windows overlapping ROH in each individual
+# detecting sites overlapping ROH in each individual
 ###############################################################
 
-# assign each SNP to a window
+# assign each site to a window (adding a window index column)
 assign_sites <- function(sites_gr, win_gr) {
   # find which window overla each SNP
   hits <- findOverlaps(sites_gr, win_gr)
@@ -79,7 +80,10 @@ assign_sites <- function(sites_gr, win_gr) {
 }
 
 # Score each site in a given individual as TRUE or FALSE depending on
-# whether or not it overlaps with ROH
+# whether or not it overlaps with ROH. This code is probably terribly
+# inefficient but works as long as its run with a machine with a huge
+# amount of RAM (I haven't benchmarked this, but ran it on a 750 Gb RAM
+# number cruncher server).
 sites_coverage <- function(samples, sites_gr, roh_gr) {
   hits_inds <- mclapply(seq_along(samples), function(i) {
     ind <- samples[i]
@@ -105,62 +109,66 @@ sites_coverage <- function(samples, sites_gr, roh_gr) {
   }, mc.cores = detectCores())
   names(hits_inds) <- samples
 
-  hits_df <- as_tibble(sites_gr) %>%
-    select(chrom = seqnames, pos = start, modern, ancient, win_i) %>%
-    mutate(chrom = as.integer(chrom)) %>%
-    cbind(do.call(cbind, hits_inds)) %>%
-    as_tibble
-
+  sites_df <- as.data.table(sites_gr)[, .(chrom = seqnames, pos = start, win_i, modern, ancient)]
+  hits_df <- cbind(sites_df, as.data.table(hits_inds))
+# TODO CHECK THAT THE MODERN AND ANCIENT COLUMNS CORRESPOND REALLY TO THE NA VALUES IN ANCIENT
+# TODO ALSO IMPLEMENT THE PADDING
   return(hits_df)
 }
 
 # assign a window number to each site
 sites_gr <- assign_sites(sites_gr, win_gr)
 
-# detect TRUE or FALSE for each site in each individual depending on whether or
-# not a given site overlaps an ROH in that individual
-coverages <- sites_coverage(all_samples, sites_gr, roh_gr)
-saveRDS(coverages, "coverages.rds")
-
+if (!file.exists("cov_df.qs")) {
+  # detect TRUE or FALSE for each site in each individual depending on whether or
+  # not a given site overlaps an ROH in that individual
+  cov_df <- sites_coverage(all_samples, sites_gr, roh_gr)
+  qsave(cov_df, "cov_df.qs", preset = "high")
+} else {
+  cov_df <- qread("cov_df.qs")
+}
 
 # 3. just a visual test that the # of ROHs in ancient vs modern match our expectation
-roh_counts <- lapply(coverages, function(ind) {
-  data.frame(set = ind$set[1], ind = ind$sample[1], roh_coverage = mean(ind$coverage))
-}) %>% do.call(rbind, .)
-ggplot(roh_counts) +
-  geom_jitter(aes(set, roh_coverage, color = set))
+# TODO: adapt to data.table in a single merged form
+#roh_counts <- lapply(coverages, function(ind) {
+#  data.frame(set = ind$set[1], ind = ind$sample[1], roh_coverage = mean(ind$coverage))
+#}) %>% do.call(rbind, .)
+#ggplot(roh_counts) +
+#  geom_jitter(aes(set, roh_coverage, color = set))
 
 
 ###############################################################
 # Bootstrap components (1, 2, 3)
 ###############################################################
 
-# 1. take a list of sites for each individual as a GRanges object and
-# shuffle them in blocks in which they are sitting together in each window
-shuffle_windows <- function(sites_gr) {
-  shuffled_windows <- lapply(sites_gr, function(ind_sites_gr) {
-    split(ind_sites_gr, ind_sites_gr$win_i) %>% sample %>% unlist
-  })
-
-  return(shuffled_windows)
+# shuffle sites in a given individual (keeping the sites sitting on the window together),
+# then return a corresponding shuffled vector of TRUE/FALSE/NA ROH status of each site
+# in this individual
+shuffle_ind <- function(ind, cov_df, win_list) {
+  # shuffle the list of windows/rows to get new row indices to...
+  shuffled_rows <- do.call(rbind, sample(win_list))
+  # shuffle the sites in this individual sample
+  shuffled_cov_df[shuffled_rows$row, ..ind]
+  shuffled_cov_df
 }
 
-# 2. convert a list of GRanges windows containing the ROH coverages (one
-# GRanges object per individual) into one merged data frame (one column
-# of coverage values for a windows per individual)
-merge_windows <- function(windows) {
-  # from each reshuffled individual, take just the vector of ROH coverages
-  df <- lapply(windows, function(ind) {
-    ind_df <- as_tibble(mcols(ind)["coverage"])
-    names(ind_df) <- ind$sample[1]
-    ind_df
-  }) %>% do.call(cbind, .) %>%
-    as_tibble
+# shuffle windows (and, therefore, sites) in all given individuals
+shuffle_samples <- function(samples, cov_df) {
+  # get a list of rows of the sites table corresponding to each window
+  win_list <- cov_df[, .(win_i, row = 1:.N)] %>% { split(., .$win_i) }
 
-  return(df)
+  shuffled_cov_df <- mclapply(
+    samples, function(ind) {
+      cat(sprintf("Shuffling sites/windows in %s\n", ind))
+      shuffle_ind(ind, cov_df, win_list)
+    }, mc.cores = detectCores()) %>%
+    do.call(cbind, .) %>%
+    cbind(cov_df[, .(chrom, pos, win_i)], .)
+
+  shuffled_cov_df
 }
 
-# 3. detect deserts in a given set of individuals (df will be a subset of
+# detect deserts in a given set of individuals (df here is a subset of
 # the merged data frame, either a set of ancient individuals or a set of
 # modern individuals, specified upon calling the function)
 detect_deserts <- function(df, cutoff) {
@@ -177,28 +185,20 @@ detect_deserts <- function(df, cutoff) {
 # sanity checking the desert inference in the original data
 ###############################################################
 
-# Let's apply step 2. (merging the per-individual window-ROH coverages) and
-# 3. (detecting deserts) on the original, non-shuffled data. This should
-# produce counts of shared ancient-vs-modern deserts similar to the
-# original analysis prior to the review.
+mean_cov_df <- cov_df[, lapply(.SD, mean, na.rm = TRUE), by = win_i, .SDcols = all_samples]
 
-# 2. merge the window-ROH hits into a single data frame
-df <- merge_windows(coverages)
-df
-
-# 3. detect deserts in ancient and modern samples
-deserts_ancient <- detect_deserts(df[, ancient_samples], cutoff = 0.05)
-deserts_modern <- detect_deserts(df[, modern_samples], cutoff = 0.05)
+deserts_ancient <- detect_deserts(mean_cov_df[, ..ancient_samples], cutoff = 0.05)
+deserts_modern <- detect_deserts(mean_cov_df[, ..modern_samples], cutoff = 0.05)
 
 sum(deserts_ancient)
-# 2757
+# 2677
 sum(deserts_modern)
-# 228
+# 212
 
 # count which windows represent a shared A vs M desert
 shared_deserts <- deserts_ancient & deserts_modern
 sum(shared_deserts)
-# --> 172
+# 159
 
 # For debugging purposes, add frequencies of ROH overlapping each
 # desert (in ancient and modern individuals) to the original table of windows
