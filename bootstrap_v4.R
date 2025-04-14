@@ -128,6 +128,13 @@ if (!file.exists("cov_df.qs")) {
   cov_df <- qread("cov_df.qs")
 }
 
+# only ancient samples have NA values
+all(cov_df[, lapply(.SD, function(x) any(is.na(x))), .SDcols = ancient_samples])
+# no modern sample has a NA value
+all(cov_df[, lapply(.SD, function(x) all(!is.na(x))), .SDcols = modern_samples])
+# all ancient samples are NA at modern-only sites
+all(cov_df[(!ancient), lapply(.SD, function(x) all(is.na(x))), .SDcols = ancient_samples])
+
 # 3. just a visual test that the # of ROHs in ancient vs modern match our expectation
 # TODO: adapt to data.table in a single merged form
 #roh_counts <- lapply(coverages, function(ind) {
