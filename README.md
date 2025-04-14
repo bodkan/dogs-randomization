@@ -10,5 +10,5 @@ install.packages(c("data.table", "ggplot2", "dplyr", "tidyr", "tibble", "readr",
 BiocManager::install("GenomicRanges")
 ```
 
-to get everything manually without renv, or just look install individual packages you're missing.
+to get everything manually without renv, or just install individual packages you're missing.
 You can see they're all fairly standard R data science packages so there hopefully won't be any issues.
