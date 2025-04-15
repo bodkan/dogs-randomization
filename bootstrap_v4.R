@@ -14,12 +14,12 @@ library(GenomicRanges)
 ###############################################################
 
 # coordinates of windows
-win_gr <- fread("cat data/dogs_allchrom_windows_cov_500kb.txt | cut -f1-3 | sort | uniq") %>%
+windows_gr <- fread("cat data/dogs_allchrom_windows_cov_500kb.txt | cut -f1-3 | sort | uniq") %>%
   setNames(c("chrom", "start", "end")) %>%
   mutate(chrom = as.integer(gsub("chr", "", chrom))) %>%
   arrange(chrom, start, end) %>%
   makeGRangesFromDataFrame()
-win_gr
+windows_gr
 
 # ROH in modern samples
 modern_gr <- fread("data/ref-panel_allchrom_sample-snp_filltags_filter_MAF_0.01_all_sites_hom_win_het_1_dogs.hom")
@@ -38,6 +38,15 @@ roh_gr <- rbind(modern_gr, ancient_gr)
 roh_gr <- makeGRangesFromDataFrame(roh_gr, keep.extra.columns = TRUE)
 roh_gr
 
+# extract sample names for downstream use
+ancient_samples <- unique(roh_gr[roh_gr$set == "ancient"]$sample)
+ancient_samples
+modern_samples <- unique(roh_gr[roh_gr$set == "modern"]$sample)
+modern_samples
+
+all_samples <- c(ancient_samples, modern_samples)
+all_samples
+
 # ancient sites
 ancient_sites <- fread("data/merged_phased_annotated.allchrom_MAF_0.01_recalibrated_INFO_0.8_all_sites_hom_win_het_1_dogs.hom.summary.gz")
 ancient_sites <- tibble(ancient_sites) %>% select(chrom = CHR, pos = BP) %>% mutate(ancient = TRUE)
@@ -49,25 +58,16 @@ merged_sites <- left_join(modern_sites, ancient_sites, by = c("chrom", "pos")) %
   mutate(
     ancient = if_else(is.na(ancient), FALSE, ancient)
   )
-sites_gr <- makeGRangesFromDataFrame(merged_sites, keep.extra.columns = TRUE, start.field = "pos", end.field = "pos")
-
-# extract sample names for later use
-ancient_samples <- unique(roh_gr[roh_gr$set == "ancient"]$sample)
-ancient_samples
-modern_samples <- unique(roh_gr[roh_gr$set == "modern"]$sample)
-modern_samples
-
-all_samples <- c(ancient_samples, modern_samples)
-all_samples
+merged_sites_gr <- makeGRangesFromDataFrame(merged_sites, keep.extra.columns = TRUE, start.field = "pos", end.field = "pos")
 
 ###############################################################
 # detecting sites overlapping ROH in each individual
 ###############################################################
 
 # assign each site to a window (adding a window index column)
-assign_sites <- function(sites_gr, win_gr) {
+assign_sites <- function(sites_gr, windows_gr) {
   # find which window overla each SNP
-  hits <- findOverlaps(sites_gr, win_gr)
+  hits <- findOverlaps(sites_gr, windows_gr)
 
   # remove SNPs not hitting a window
   sites_gr <- sites_gr[queryHits(hits)]
@@ -79,11 +79,37 @@ assign_sites <- function(sites_gr, win_gr) {
   return(sites_gr)
 }
 
+add_padding <- function(sites_gr) {
+  # split sites into window chunks
+  snp_windows <- split(sites_gr, sites_gr$win_i)
+  # what's the longest window in terms of the number of sites?
+  max_length <- snp_windows %>% sapply(length) %>% max
+
+  # loop over all windows with consecutive sites and add the required
+  # padding of the required number of dummy sites as needed
+  snp_windows_padded <- lapply(snp_windows, function(win_gr) {
+    # how many dummy sites should we add to pad this window?
+    padding_length <- max_length - length(win_gr)
+
+    # add dummy sites if needed
+    if (padding_length > 0) {
+      padding_gr <- GRanges(seqnames = seqnames(win_gr)[1],
+                            ranges = IRanges(start = rep(-1, padding_length), width = 1),
+                            modern = NA, ancient = NA, win_i = win_gr$win_i[1])
+    } else {
+      padding_gr <- NULL
+    }
+
+    win_gr <- do.call(c, list(win_gr, padding_gr))
+  }) %>% GRangesList(compress = FALSE) %>% unlist
+
+  snp_windows_padded
+}
+
 # Score each site in a given individual as TRUE or FALSE depending on
 # whether or not it overlaps with ROH. This code is probably terribly
 # inefficient but works as long as its run with a machine with a huge
-# amount of RAM (I haven't benchmarked this, but ran it on a 750 Gb RAM
-# number cruncher server).
+# amount of RAM (I ran it on a 750 Gb RAM number cruncher machine).
 sites_coverage <- function(samples, sites_gr, roh_gr) {
   hits_inds <- mclapply(seq_along(samples), function(i) {
     ind <- samples[i]
@@ -111,13 +137,19 @@ sites_coverage <- function(samples, sites_gr, roh_gr) {
 
   sites_df <- as.data.table(sites_gr)[, .(chrom = seqnames, pos = start, win_i, modern, ancient)]
   hits_df <- cbind(sites_df, as.data.table(hits_inds))
-# TODO CHECK THAT THE MODERN AND ANCIENT COLUMNS CORRESPOND REALLY TO THE NA VALUES IN ANCIENT
-# TODO ALSO IMPLEMENT THE PADDING
+
   return(hits_df)
 }
 
 # assign a window number to each site
-sites_gr <- assign_sites(sites_gr, win_gr)
+sites_gr <- assign_sites(merged_sites_gr, windows_gr)
+# pad each window with dummy NA sites so that each window is of the same length
+# (and we can reshuffle windows in each individual during bootstrapping)
+sites_gr <- add_padding(sites_gr)
+
+# sanity check -- all windows now must be of the same length
+sites_gr$win_i %>% table %>% unique
+
 
 if (!file.exists("cov_df.qs")) {
   # detect TRUE or FALSE for each site in each individual depending on whether or
@@ -209,7 +241,7 @@ sum(shared_deserts)
 
 # For debugging purposes, add frequencies of ROH overlapping each
 # desert (in ancient and modern individuals) to the original table of windows
-original_win <- win_gr
+original_win <- windows_gr
 original_win$cov_ancient <- rowMeans(df[, ancient_samples])
 original_win$cov_modern <- rowMeans(df[, modern_samples])
 original_win$desert <- shared_deserts
