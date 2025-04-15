@@ -121,6 +121,9 @@ sites_coverage <- function(samples, sites_gr, roh_gr) {
 
     # take a respective subset of all sites (either ancient set or modern set)
     subset <- mcols(sites_gr)[[set]]
+    # and only those sites which are not 'dummy sites' used for padding windows
+    # to the same length
+    subset <- subset & !is.na(subset)
 
     # detect which sites in this individual overlap with an ROH -- a site
     # in the overall data set will be either TRUE or FALSE (depending on whether
@@ -150,7 +153,6 @@ sites_gr <- add_padding(sites_gr)
 # sanity check -- all windows now must be of the same length
 sites_gr$win_i %>% table %>% unique
 
-
 if (!file.exists("cov_df.qs")) {
   # detect TRUE or FALSE for each site in each individual depending on whether or
   # not a given site overlaps an ROH in that individual
@@ -161,11 +163,11 @@ if (!file.exists("cov_df.qs")) {
 }
 
 # only ancient samples have NA values
-all(cov_df[, lapply(.SD, function(x) any(is.na(x))), .SDcols = ancient_samples])
+all(cov_df[!is.na(modern), lapply(.SD, function(x) any(is.na(x))), .SDcols = ancient_samples])
 # no modern sample has a NA value
-all(cov_df[, lapply(.SD, function(x) all(!is.na(x))), .SDcols = modern_samples])
+all(cov_df[!is.na(modern), lapply(.SD, function(x) all(!is.na(x))), .SDcols = modern_samples])
 # all ancient samples are NA at modern-only sites
-all(cov_df[(!ancient), lapply(.SD, function(x) all(is.na(x))), .SDcols = ancient_samples])
+all(cov_df[!is.na(ancient) & (!ancient), lapply(.SD, function(x) all(is.na(x))), .SDcols = ancient_samples])
 
 # 3. just a visual test that the # of ROHs in ancient vs modern match our expectation
 # TODO: adapt to data.table in a single merged form
