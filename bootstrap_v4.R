@@ -161,7 +161,7 @@ sites_gr <- assign_sites(merged_sites_gr, windows_gr)
 sites_gr <- add_padding(sites_gr)
 
 # sanity check -- all windows now must be of the same length
-expect_true(unique(table(sites_gr$win_i)))
+expect_true(length(unique(table(sites_gr$win_i))) == 1)
 
 # assign TRUE or FALSE to each site in each individual depending on whether or
 # not a given site overlaps an ROH in that individual
@@ -179,8 +179,6 @@ expect_true(all(cov_df[!is.na(modern), lapply(.SD, function(x) any(is.na(x))), .
 expect_true(all(cov_df[!is.na(modern), lapply(.SD, function(x) all(!is.na(x))), .SDcols = modern_samples]))
 # all ancient samples are NA at modern-only sites
 expect_true(all(cov_df[!is.na(ancient) & (!ancient), lapply(.SD, function(x) all(is.na(x))), .SDcols = ancient_samples]))
-
-stop("done")
 
 # 3. just a visual test that the # of ROHs in ancient vs modern match our expectation
 # TODO: adapt to data.table in a single merged form
@@ -222,6 +220,11 @@ shuffle_all <- function(samples, cov_df) {
   shuffled_cov_df
 }
 
+# compute the proportion of sites covered by ROH for each window in each sample
+windows_coverage <- function(cov_df, samples) {
+  cov_df[, lapply(.SD, mean, na.rm = TRUE), by = win_i, .SDcols = samples]
+}
+
 # detect deserts in a given set of individuals (df here is a subset of
 # the merged data frame, either a set of ancient individuals or a set of
 # modern individuals, specified upon calling the function)
@@ -235,27 +238,33 @@ detect_deserts <- function(df, cutoff) {
   return(deserts)
 }
 
-# sanity checking the desert inference in the original data (i.e. data without shuffling)
-mean_cov_df <- cov_df[, lapply(.SD, mean, na.rm = TRUE), by = win_i, .SDcols = all_samples]
+###############################################################
+# Testing the computation on the original (unshuffled) data
+###############################################################
 
-deserts_ancient <- detect_deserts(mean_cov_df[, ..ancient_samples], cutoff = 0.05)
-deserts_modern <- detect_deserts(mean_cov_df[, ..modern_samples], cutoff = 0.05)
+# compute ROH/SNP coverage in each window
+win_ancient_df <- windows_coverage(cov_df, ancient_samples)
+win_modern_df <- windows_coverage(cov_df, modern_samples)
 
+# assign desert status to each window (TRUE or FALSE)
+deserts_ancient <- detect_deserts(win_ancient_df[, ..ancient_samples], cutoff = 0.05)
+deserts_modern <- detect_deserts(win_modern_df[, ..modern_samples], cutoff = 0.05)
+
+# count the deserts
 sum(deserts_ancient)
 # 2677
 sum(deserts_modern)
 # 212
-
-# count which windows represent a shared A vs M desert
 shared_deserts <- deserts_ancient & deserts_modern
 sum(shared_deserts)
 # 159
 
-# For debugging purposes, add frequencies of ROH overlapping each
-# desert (in ancient and modern individuals) to the original table of windows
+# for debugging purposes, add ROH frequencies for each window (in ancient and
+# modern individuals) to the original table of windows for easier reference
 original_win <- windows_gr
 # remove the window which is missing any SNPs
 original_win <- original_win[sort(unique(cov_df$win_i))]
+
 original_win$cov_ancient <- rowMeans(mean_cov_df[, .SD, .SDcols = ancient_samples])
 original_win$cov_modern <- rowMeans(mean_cov_df[, .SD, .SDcols = modern_samples])
 original_win$desert <- shared_deserts
@@ -272,6 +281,7 @@ original_win[original_win$desert]
 
 
 
+stop("done")
 
 
 
@@ -354,25 +364,3 @@ abline(v = obs_count)
 # than the value we observed?
 1 - e(obs_count)
 
-
-
-
-
-
-
-
-
-
-
-
-snps <- makeGRangesFromDataFrame(
-  data.frame(ind = "ind1", chrom = "chr1",
-             start = c(1, 6, 10, 20, 100, 1000, 2000),
-             end = c(1, 6, 10, 20, 100, 1000, 2000),
-             win_i = c(1, 1, 2, 2, 2, 3, 3)),
-  keep.extra.columns = TRUE)
-snps
-
-sample(snps$win_i)
-
-split(snps, snps$win_i) %>% sample %>% unlist
