@@ -278,9 +278,25 @@ original_win[original_win$cov_modern < 0.05]
 # deserts in both ancient and modern individuals
 original_win[original_win$desert]
 
-stop("asdf")
-fwrite(as.data.table(original_win)[, .(chrom = seqnames, start, end, cov_ancient, cov_modern, desert)],
-       "data/roh_windows.tsv", sep = "\t", row.names = FALSE)
+new_deserts <- original_win[original_win$desert]
+as.data.table(new_deserts)[, .(chrom = seqnames, start, end,
+                               mean_ancient = cov_ancient, mean_modern = cov_modern, desert)] %>%
+  fwrite("data/roh_deserts.tsv", sep = "\t", row.names = FALSE)
+
+new_deserts <-
+  fread("data/roh_windows.tsv")[(desert)] %>%
+  makeGRangesFromDataFrame(keep.extra.columns = TRUE)
+
+old_deserts <-
+  fread("data/imputed_modern_window_bed_0.01_INFO_0.8_all_sites_hom_win_het_1_dogs_deserts.bed",
+        col.names = c("chrom", "start", "end")) %>%
+  makeGRangesFromDataFrame(keep.extra.columns = TRUE)
+
+new_deserts
+old_deserts
+desert_hits <- findOverlaps(new_deserts, old_deserts, type = "equal")
+length(desert_hits)
+
 
 ###############################################################
 # Bootstrapping itself
