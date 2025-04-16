@@ -278,15 +278,22 @@ original_win[original_win$cov_modern < 0.05]
 # deserts in both ancient and modern individuals
 original_win[original_win$desert]
 
+# save coordinates of shared deserts
 new_deserts <- original_win[original_win$desert]
 as.data.table(new_deserts)[, .(chrom = seqnames, start, end,
                                mean_ancient = cov_ancient, mean_modern = cov_modern, desert)] %>%
   fwrite("data/roh_deserts.tsv", sep = "\t", row.names = FALSE)
 
+###############################################################
+# Comparison of pre-review and post-review desert windows
+###############################################################
+
+# read coordinates of new deserts
 new_deserts <-
-  fread("data/roh_windows.tsv")[(desert)] %>%
+  fread("data/roh_deserts.tsv")[(desert)] %>%
   makeGRangesFromDataFrame(keep.extra.columns = TRUE)
 
+# read coordinates of deserts from the pre-review manuscript
 old_deserts <-
   fread("data/imputed_modern_window_bed_0.01_INFO_0.8_all_sites_hom_win_het_1_dogs_deserts.bed",
         col.names = c("chrom", "start", "end")) %>%
