@@ -197,9 +197,9 @@ expect_true(all(cov_df[!is.na(ancient) & (!ancient), lapply(.SD, function(x) all
 # then return a corresponding shuffled vector of TRUE/FALSE/NA ROH status of each site
 # in this individual
 shuffle_one <- function(ind, cov_df, win_list) {
-  # shuffle the list of windows/rows to get new row indices to...
+  # shuffle the list of windows/rows to get new row indices in order to...
   shuffled_rows <- do.call(rbind, sample(win_list))
-  # shuffle the sites in this individual sample
+  # ... shuffle the sites in this individual sample
   shuffled_cov_df[shuffled_rows$row, ..ind]
   shuffled_cov_df
 }
@@ -221,7 +221,7 @@ shuffle_all <- function(samples, cov_df) {
 }
 
 # compute the proportion of sites covered by ROH for each window in each sample
-windows_coverage <- function(cov_df, samples) {
+windows_coverage <- function(samples, cov_df) {
   cov_df[, lapply(.SD, mean, na.rm = TRUE), by = win_i, .SDcols = samples]
 }
 
@@ -243,12 +243,11 @@ detect_deserts <- function(df, cutoff) {
 ###############################################################
 
 # compute ROH/SNP coverage in each window
-win_ancient_df <- windows_coverage(cov_df, ancient_samples)
-win_modern_df <- windows_coverage(cov_df, modern_samples)
+mean_win_df <- windows_coverage(all_samples, cov_df)
 
 # assign desert status to each window (TRUE or FALSE)
-deserts_ancient <- detect_deserts(win_ancient_df[, ..ancient_samples], cutoff = 0.05)
-deserts_modern <- detect_deserts(win_modern_df[, ..modern_samples], cutoff = 0.05)
+deserts_ancient <- detect_deserts(mean_win_df[, ..ancient_samples], cutoff = 0.05)
+deserts_modern <- detect_deserts(mean_win_df[, ..modern_samples], cutoff = 0.05)
 
 # count the deserts
 sum(deserts_ancient)
@@ -265,8 +264,8 @@ original_win <- windows_gr
 # remove the window which is missing any SNPs
 original_win <- original_win[sort(unique(cov_df$win_i))]
 
-original_win$cov_ancient <- rowMeans(mean_cov_df[, .SD, .SDcols = ancient_samples])
-original_win$cov_modern <- rowMeans(mean_cov_df[, .SD, .SDcols = modern_samples])
+original_win$cov_ancient <- rowMeans(mean_win_df[, .SD, .SDcols = ancient_samples])
+original_win$cov_modern <- rowMeans(mean_win_df[, .SD, .SDcols = modern_samples])
 original_win$desert <- shared_deserts
 original_win
 
@@ -279,30 +278,28 @@ original_win[original_win$cov_modern < 0.05]
 # deserts in both ancient and modern individuals
 original_win[original_win$desert]
 
-
-
-stop("done")
-
-
-
-
-
+stop("asdf")
+fwrite(as.data.table(original_win)[, .(chrom = seqnames, start, end, cov_ancient, cov_modern, desert)],
+       "data/roh_windows.tsv", sep = "\t", row.names = FALSE)
 
 ###############################################################
-# bootstrapping begins here
+# Bootstrapping itself
 ###############################################################
 
 # run a single replicate of the desert inference
-run_replicate <- function(windows, rep_i) {
-  # 1. reshuffle windows in each individual
-  shuffled_win <- shuffle_windows(windows)
+run_replicate <- function(rep_i, cov_df) {
+  cat("Running replicate #", rep_i, "\n")
+  tstart <- Sys.time()
 
-  # 2. convert list of GRanges into a single merged data frame
-  shuffled_merged <- merge_windows(shuffled_win)
+  # 1. reshuffle windows in each individual
+  shuffled_cov_df <- shuffle_all(all_samples, cov_df)
+
+  # 2. compute SNP-ROH coverage in each window
+  mean_win_df <- windows_coverage(all_samples, shuffled_cov_df)
 
   # 3. detect which ancient vs modern deserts are shared (producing a TRUE/FALSE vector)
-  deserts_ancient <- detect_deserts(shuffled_merged[, ancient_samples], cutoff = 0.05)
-  deserts_modern <- detect_deserts(shuffled_merged[, modern_samples], cutoff = 0.05)
+  deserts_ancient <- detect_deserts(mean_win_df[, ..ancient_samples], cutoff = 0.05)
+  deserts_modern <- detect_deserts(mean_win_df[, ..modern_samples], cutoff = 0.05)
 
   # detect which reshuffled windows correspond to a shared A vs M desert
   deserts_shared <- deserts_ancient & deserts_modern
@@ -311,25 +308,30 @@ run_replicate <- function(windows, rep_i) {
   df <- tibble(
     rep_i = rep_i,
     win_i = seq_along(deserts_shared),
-    match = deserts_shared
+    match = as.integer(deserts_shared),
+    time = Sys.time() - tstart
   )
 
   return(df)
 }
 
+x = run_replicate(1, cov_df)
+
+stop("asdf")
+
 # run 100 bootstrap desert reshuffling simulations
-reps <- mclapply(1:100, function(rep_i) run_replicate(windows, rep_i = rep_i),
-                 mc.cores = detectCores()) %>%
-  do.call(rbind, .) %>%
-  mutate(match = as.integer(match))
+reps <- lapply(1:100, function(rep_i) run_replicate(rep_i, cov_df)) %>% do.call(rbind, .)
+
+saveRDS("bootstrap_reps.rds")
+stop("FINISHED!")
 
 # the bootstrap loop produces a data frame with three columns:
-#   - rep_i: iteration number
-#   - win_i: index of a window (1:4-thousand-and0something)
-#   - match: for each window, whether that window is a shared desert (1) or not (0)
+#   - rep_i: replicate number
+#   - win_i: index of a window
+#   - match: whether that window is a shared desert (1) or not (0)
 reps
 
-# Katia's original count of the shared deserts
+# the original count of the shared deserts in the paper
 empirical_count <- 124
 
 # counts observed in each bootstrapping iteration
