@@ -11,4 +11,5 @@ BiocManager::install("GenomicRanges")
 ```
 
 to get everything manually without renv, or just install individual packages
-from the `[bootstrap script](bootstrap_v4.R)` that you're missing.
+from the `[two](01_detect_deserts.R)` `[scripts](02_bootstrap_deserts.R)` that
+you're missing.
