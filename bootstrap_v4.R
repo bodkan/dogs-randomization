@@ -300,10 +300,16 @@ old_deserts <-
   makeGRangesFromDataFrame(keep.extra.columns = TRUE)
 
 new_deserts
+length(new_deserts)
+# 159
+
 old_deserts
+length(old_deserts)
+# 124
+
 desert_hits <- findOverlaps(new_deserts, old_deserts, type = "equal")
 length(desert_hits)
-
+# 124 -- old desert windows are all within the new desert windows
 
 ###############################################################
 # Bootstrapping itself
@@ -388,4 +394,3 @@ abline(v = obs_count)
 # what's the probability of observing a value as extreme (or more extreme)
 # than the value we observed?
 1 - e(obs_count)
-
