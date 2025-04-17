@@ -3,13 +3,12 @@
 3. R will automatically download renv.
 4. Call `renv::restore()` which should download the package dependencies used.
 
-If renv setup fails for whatever reason, just do this:
+If the renv setup fails for whatever reason, you can also do this:
 
 ```
 install.packages(c("data.table", "ggplot2", "dplyr", "tidyr", "tibble", "readr", "BiocManager"))
 BiocManager::install("GenomicRanges")
 ```
 
-to get everything manually without renv, or just install individual packages
-from [this](01_detect_deserts.R) or [this](02_bootstrap_deserts.R) script that
-you're missing.
+to get everything manually without renv, or simply install install individual packages
+from [this](01_detect_deserts.R) or [this](02_bootstrap_deserts.R) script.
