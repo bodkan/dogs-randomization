@@ -307,8 +307,9 @@ old_deserts
 length(old_deserts)
 # 124
 
-desert_hits <- findOverlaps(new_deserts, old_deserts, type = "equal")
-length(desert_hits)
+# detect deserts which were present both pre- and post-review
+overlapping_deserts <- findOverlaps(new_deserts, old_deserts, type = "equal")
+length(overlapping_deserts)
 # 124 -- old desert windows are all within the new desert windows
 
 ###############################################################
