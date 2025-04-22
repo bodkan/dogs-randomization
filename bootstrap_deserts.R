@@ -188,6 +188,11 @@ expect_true(all(cov_df[!is.na(ancient) & (!ancient), lapply(.SD, function(x) all
 #ggplot(roh_counts) +
 #  geom_jitter(aes(set, roh_coverage, color = set))
 
+#ancient_freq <- cov_df[(ancient), .(chrom, pos, win_i, count = rowSums(.SD, na.rm = TRUE)), .SDcols = ancient_samples]
+#ancient_freq <- ancient_freq[pos != -1]
+#ancient_sites <- fread("data/merged_phased_annotated.allchrom_MAF_0.01_recalibrated_INFO_0.8_all_sites_hom_win_het_1_dogs.hom.summary.gz")
+
+
 ###############################################################
 # Detecting desert status of each window
 ###############################################################
