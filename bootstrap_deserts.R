@@ -166,7 +166,8 @@ expect_true(length(unique(table(sites_gr$win_i))) == 1)
 # assign TRUE or FALSE to each site in each individual depending on whether or
 # not a given site overlaps an ROH in that individual
 if (!file.exists("cov_df.qs")) {
-  cov_df <- sites_coverage(c(ancient_samples[1:3], modern_samples[1:3]), sites_gr, roh_gr)
+  #cov_df <- sites_coverage(c(ancient_samples[1:3], modern_samples[1:3]), sites_gr, roh_gr)
+  cov_df <- sites_coverage(all_samples, sites_gr, roh_gr)
   # cache the table to make things a little faster to iterate on
   qsave(cov_df, "cov_df.qs", preset = "high")
 } else {
