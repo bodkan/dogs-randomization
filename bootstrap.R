@@ -46,6 +46,7 @@ ancient_samples
 modern_samples <- unique(roh_gr[roh_gr$set == "modern"]$sample)
 
 all_samples <- c(ancient_samples, modern_samples)
+qsave(all_samples, "all_samples.qs")
 
 # ancient sites
 ancient_sites <- fread("data/merged_phased_annotated.allchrom_MAF_0.01_recalibrated_INFO_0.8_all_sites_hom_win_het_1_dogs.hom.summary.gz")
@@ -318,19 +319,51 @@ shuffle_samples <- function(samples, sites_df, cov_list) {
   # get a list of rows of the sites table corresponding to each window
   win_list <- sites_df[, .(win_i, row = 1:.N)] %>% { split(., .$win_i) }
 
-  shuffled_cov_df <- mclapply(cov_list, shuffle_one, win_list = win_list, mc.cores = 50) %>% as.data.table
+  shuffled_cov_df <- mclapply(cov_list, shuffle_one, win_list = win_list, mc.cores = 20) %>% as.data.table
 
   shuffled_cov_df
 }
 
-# extract coordinates and window numbers of all sites
-sites_df <- cov_df[, .(chrom, pos, win_i)]
-# split the combined ROH-sites-coverage data table into a list of vectors
-cov_list <- lapply(all_samples, function(s) cov_df[[s]])
-# clear up memory before the bootstrap
-rm(cov_df)
-gc()
+suppressPackageStartupMessages({
+    library(data.table)
+    library(R.utils)
+    library(qs)
+    library(ggplot2)
+    library(dplyr)
+    library(tidyr)
+    library(tibble)
+    library(readr)
+    library(parallel)
+    library(GenomicRanges)
+    library(testthat)
+    library(pryr)
+})
+
+
+cat("Splitting table of ROH sites into a per-individual list... ")
+if (!file.exists("cov_list.qs") || !file.exists("sites_df.qs")) {
+  sites_df <- cov_df[, .(chrom, pos, win_i)]
+  qsave(sites_df, "sites_df.qs", preset = "high")
+
+  # split the combined ROH-sites-coverage data table into a list of sites in each
+  # individual's window
+  cov_list <- mclapply(all_samples, function(s) split(cov_df[[s]], cov_df$win_i), mc.cores = 50)
+  names(cov_list) <- all_samples
+  qsave(cov_list, "cov_list.qs", preset = "high")
+
+  # free up memory before the bootstrap
+  rm(cov_df)
+  gc()
+} else {
+  all_samples <- qread("all_samples.qs")
+  sites_df <- qread("sites_df.qs")
+  cov_list <- qread("cov_list.qs")
+}
+cat("done.\n")
+
 stop("asdf")
+
+shuffled_cov_df <- shuffle_samples(all_samples, sites_df, cov_list)
 
 # run a single replicate of the desert inference
 run_replicate <- function(rep_i, sites_df, cov_list) {
