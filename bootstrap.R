@@ -25,33 +25,27 @@ windows_gr <- fread("cat data/dogs_allchrom_windows_cov_500kb.txt | cut -f1-3 | 
   mutate(chrom = as.integer(gsub("chr", "", chrom))) %>%
   arrange(chrom, start, end) %>%
   makeGRangesFromDataFrame()
-windows_gr
 
 # ROH in modern samples
 modern_gr <- fread("data/ref-panel_allchrom_sample-snp_filltags_filter_MAF_0.01_all_sites_hom_win_het_1_dogs.hom")
 modern_gr <- tibble(modern_gr) %>% select(sample = FID, chrom = CHR, start = POS1, end = POS2)
 modern_gr$set <- "modern"
-modern_gr
 
 # ROH in ancient samples
 ancient_gr <- fread("data/merged_phased_annotated.allchrom_MAF_0.01_recalibrated_INFO_0.8_all_sites_hom_win_het_1_dogs.hom")
 ancient_gr <- tibble(ancient_gr) %>% select(sample = FID, chrom = CHR, start = POS1, end = POS2)
 ancient_gr$set <- "ancient"
-ancient_gr
 
 # combine ROH sets into a single GRanges object
 roh_gr <- rbind(modern_gr, ancient_gr)
 roh_gr <- makeGRangesFromDataFrame(roh_gr, keep.extra.columns = TRUE)
-roh_gr
 
 # extract sample names for downstream use
 ancient_samples <- unique(roh_gr[roh_gr$set == "ancient"]$sample)
 ancient_samples
 modern_samples <- unique(roh_gr[roh_gr$set == "modern"]$sample)
-modern_samples
 
 all_samples <- c(ancient_samples, modern_samples)
-all_samples
 
 # ancient sites
 ancient_sites <- fread("data/merged_phased_annotated.allchrom_MAF_0.01_recalibrated_INFO_0.8_all_sites_hom_win_het_1_dogs.hom.summary.gz")
@@ -63,7 +57,7 @@ modern_sites <- tibble(modern_sites) %>% select(chrom = CHR, pos = BP) %>% mutat
 
 # apparently ancient sites are a perfect superset of modern sites (due to
 # stricter filtering on some original set of sites)
-expect_equal(ancient_sites, inner_join(ancient_sites, modern_sites)[c("chrom", "pos", "ancient")])
+expect_equal(ancient_sites, inner_join(ancient_sites, modern_sites, by = c("chrom", "pos"))[c("chrom", "pos", "ancient")])
 
 # combine both sets to make the downstream code simpler (switching between
 # ancient and modern column subsets as needed for each individual sample)
@@ -311,54 +305,40 @@ length(overlapping_deserts)
 # shuffle sites in a given individual (keeping the sites sitting on the window together),
 # then return a corresponding shuffled vector of TRUE/FALSE/NA ROH status of each site
 # in this individual
-shuffle_one <- function(ind, cov_df, win_list) {
-  # shuffle the list of windows/rows to get new row indices in order to...
-  shuffled_rows <- do.call(rbind, sample(win_list))
+shuffle_one <- function(ind_cov, win_list) {
+  # shuffle the list of windows/rows to get new site indices in order to...
+  shuffled_sites <- do.call(rbind, sample(win_list))
   # ... shuffle the sites in this individual sample
-  shuffled_cov_df <- cov_df[shuffled_rows$row, ..ind]
-  shuffled_cov_df
+  shuffled_ind_cov <- ind_cov[shuffled_sites$row]
+  shuffled_ind_cov
 }
 
 # shuffle windows (and, therefore, sites) in all given individuals
-shuffle_samples <- function(samples, cov_df, chunk) {
+shuffle_samples <- function(samples, sites_df, cov_list) {
   # get a list of rows of the sites table corresponding to each window
-  win_list <- cov_df[, .(win_i, row = 1:.N)] %>% { split(., .$win_i) }
+  win_list <- sites_df[, .(win_i, row = 1:.N)] %>% { split(., .$win_i) }
 
-  # chunk a (potentially a very long) vector of sample names into more manageable
-  # set of chunks, to be reshuffled in batches to avoid out-of-memory errors
-  sample_chunks <- split(samples, ceiling(seq_along(samples) / chunk))
-
-  shuffled_cov_df <- mclapply(
-    seq_along(sample_chunks),
-    function(chunk_i) {
-      one_chunk <- sample_chunks[[chunk_i]]
-      cat(sprintf("START -- processing of chunk %s/%s\n", chunk_i, length(sample_chunks)))
-      #cat("Samples involved:\n", paste0(one_chunk, collapse = ", "), "\n\n")
-
-      res_df <- lapply(one_chunk, function(ind) {
-          #cat(sprintf("Shuffling sites/windows in %s\n", ind))
-          shuffle_one(ind, cov_df[, ..ind], win_list)
-        }
-      ) %>%
-        do.call(cbind, .)
-
-      cat(sprintf("END -- processing of chunk %s/%s\n", chunk_i, length(sample_chunks)))
-
-      res_df
-
-    }, mc.cores = detectCores()
-  ) %>%
-    cbind(cov_df[, .(chrom, pos, win_i)], .)
+  shuffled_cov_df <- mclapply(cov_list, shuffle_one, win_list = win_list, mc.cores = 50) %>% as.data.table
 
   shuffled_cov_df
 }
 
+# extract coordinates and window numbers of all sites
+sites_df <- cov_df[, .(chrom, pos, win_i)]
+# split the combined ROH-sites-coverage data table into a list of vectors
+cov_list <- lapply(all_samples, function(s) cov_df[[s]])
+# clear up memory before the bootstrap
+rm(cov_df)
+gc()
+stop("asdf")
+
 # run a single replicate of the desert inference
-run_replicate <- function(rep_i, cov_df) {
+run_replicate <- function(rep_i, sites_df, cov_list) {
   cat("Running replicate #", rep_i, "\n")
 
   # 1. reshuffle windows in each individual
-  shuffled_cov_df <- shuffle_samples(all_samples, cov_df, chunk = 60)
+  shuffled_cov_df <- shuffle_samples(all_samples, sites_df, cov_list)
+  shuffled_cov_df <- cbind(sites_df, shuffled_cov_df)
 
   # 2. compute SNP-ROH coverage in each window
   mean_win_df <- windows_coverage(all_samples, shuffled_cov_df)
