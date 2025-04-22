@@ -1,3 +1,4 @@
+suppressPackageStartupMessages({
 library(data.table)
 library(R.utils)
 library(qs)
@@ -10,10 +11,13 @@ library(parallel)
 library(GenomicRanges)
 library(testthat)
 library(pryr)
+})
 
 ###############################################################
 # read all input data
 ###############################################################
+
+cat("Reading input data... ")
 
 # coordinates of windows
 windows_gr <- fread("cat data/dogs_allchrom_windows_cov_500kb.txt | cut -f1-3 | sort | uniq") %>%
@@ -68,6 +72,8 @@ merged_sites <- left_join(modern_sites, ancient_sites, by = c("chrom", "pos")) %
     ancient = if_else(is.na(ancient), FALSE, ancient)
   )
 merged_sites_gr <- makeGRangesFromDataFrame(merged_sites, keep.extra.columns = TRUE, start.field = "pos", end.field = "pos")
+
+cat("done.\n")
 
 ###############################################################
 # detecting sites overlapping ROH in each individual
@@ -154,6 +160,8 @@ sites_coverage <- function(samples, sites_gr, roh_gr) {
   return(hits_df)
 }
 
+cat("Processing sites... ")
+
 # assign a window number to each site
 sites_gr <- assign_sites(merged_sites_gr, windows_gr)
 
@@ -163,6 +171,10 @@ sites_gr <- add_padding(sites_gr)
 
 # sanity check -- all windows now must be of the same length
 expect_true(length(unique(table(sites_gr$win_i))) == 1)
+
+cat("done.\n")
+
+cat("Assigning sites to ROH segments... ")
 
 # assign TRUE or FALSE to each site in each individual depending on whether or
 # not a given site overlaps an ROH in that individual
@@ -181,6 +193,8 @@ expect_true(all(cov_df[!is.na(modern), lapply(.SD, function(x) any(is.na(x))), .
 expect_true(all(cov_df[!is.na(modern), lapply(.SD, function(x) all(!is.na(x))), .SDcols = modern_samples]))
 # all ancient samples are NA at modern-only sites
 expect_true(all(cov_df[!is.na(ancient) & (!ancient), lapply(.SD, function(x) all(is.na(x))), .SDcols = ancient_samples]))
+
+cat("done.\n")
 
 # 3. just a visual test that the # of ROHs in ancient vs modern match our expectation
 # TODO: adapt to data.table in a single merged form
@@ -221,46 +235,46 @@ detect_deserts <- function(df, cutoff) {
 # Testing desert detection on the original (unshuffled) data
 ###############################################################
 
-# compute ROH/SNP coverage in each window
-mean_win_df <- windows_coverage(all_samples, cov_df)
-
-# assign desert status to each window (TRUE or FALSE)
-deserts_ancient <- detect_deserts(mean_win_df[, ..ancient_samples], cutoff = 0.05)
-deserts_modern <- detect_deserts(mean_win_df[, ..modern_samples], cutoff = 0.05)
-
-# count the deserts
-sum(deserts_ancient)
-# 2677
-sum(deserts_modern)
-# 212
-shared_deserts <- deserts_ancient & deserts_modern
-sum(shared_deserts)
-# 159
-
-# for debugging purposes, add ROH frequencies for each window (in ancient and
-# modern individuals) to the original table of windows for easier reference
-original_win <- windows_gr
-# remove the window which is missing any SNPs
-original_win <- original_win[sort(unique(cov_df$win_i))]
-
-original_win$mean_ancient <- rowMeans(mean_win_df[, .SD, .SDcols = ancient_samples])
-original_win$mean_modern <- rowMeans(mean_win_df[, .SD, .SDcols = modern_samples])
-original_win$desert <- shared_deserts
-original_win
-
-# just the deserts in ancient individuals
-original_win[original_win$mean_ancient < 0.05]
-
-# just the deserts in modern individuals
-original_win[original_win$mean_modern < 0.05]
-
-# deserts in both ancient and modern individuals
-original_win[original_win$desert]
-
-# finally, save coordinates of shared ancient & modern deserts
-new_deserts <- original_win[original_win$desert]
-as.data.table(new_deserts)[, .(chrom = seqnames, start, end, mean_ancient, mean_modern, desert)] %>%
-  fwrite("new_deserts.tsv", sep = "\t", row.names = FALSE)
+## compute ROH/SNP coverage in each window
+#mean_win_df <- windows_coverage(all_samples, cov_df)
+#
+## assign desert status to each window (TRUE or FALSE)
+#deserts_ancient <- detect_deserts(mean_win_df[, ..ancient_samples], cutoff = 0.05)
+#deserts_modern <- detect_deserts(mean_win_df[, ..modern_samples], cutoff = 0.05)
+#
+## count the deserts
+#sum(deserts_ancient)
+## 2677
+#sum(deserts_modern)
+## 212
+#shared_deserts <- deserts_ancient & deserts_modern
+#sum(shared_deserts)
+## 159
+#
+## for debugging purposes, add ROH frequencies for each window (in ancient and
+## modern individuals) to the original table of windows for easier reference
+#original_win <- windows_gr
+## remove the window which is missing any SNPs
+#original_win <- original_win[sort(unique(cov_df$win_i))]
+#
+#original_win$mean_ancient <- rowMeans(mean_win_df[, .SD, .SDcols = ancient_samples])
+#original_win$mean_modern <- rowMeans(mean_win_df[, .SD, .SDcols = modern_samples])
+#original_win$desert <- shared_deserts
+#original_win
+#
+## just the deserts in ancient individuals
+#original_win[original_win$mean_ancient < 0.05]
+#
+## just the deserts in modern individuals
+#original_win[original_win$mean_modern < 0.05]
+#
+## deserts in both ancient and modern individuals
+#original_win[original_win$desert]
+#
+## finally, save coordinates of shared ancient & modern deserts
+#new_deserts <- original_win[original_win$desert]
+#as.data.table(new_deserts)[, .(chrom = seqnames, start, end, mean_ancient, mean_modern, desert)] %>%
+#  fwrite("new_deserts.tsv", sep = "\t", row.names = FALSE)
 
 ###############################################################
 # Comparison of pre-review and post-review desert windows
@@ -345,7 +359,7 @@ run_replicate <- function(rep_i, cov_df) {
 
   # 1. reshuffle windows in each individual
   shuffled_cov_df <- shuffle_samples(all_samples, cov_df, chunk = 60)
- browser( )
+
   # 2. compute SNP-ROH coverage in each window
   mean_win_df <- windows_coverage(all_samples, shuffled_cov_df)
 
@@ -368,6 +382,8 @@ run_replicate <- function(rep_i, cov_df) {
   return(df)
 }
 
+cat("Simulating bootstrap replicates... ")
+
 if (!file.exists("bootstrap_reps.rds")) {
   tstart <- Sys.time()
 
@@ -384,6 +400,8 @@ if (!file.exists("bootstrap_reps.rds")) {
 } else {
   bootstrap_reps <- readRDS("bootstrap_reps.rds")
 }
+
+cat("done.\n")
 
 # the bootstrap loop produces a data frame with three columns:
 #   - rep_i: replicate number
