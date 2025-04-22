@@ -1,6 +1,7 @@
 suppressPackageStartupMessages({
 library(data.table)
 library(R.utils)
+library(bit)
 library(qs)
 library(ggplot2)
 library(dplyr)
