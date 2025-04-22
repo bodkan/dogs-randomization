@@ -9,6 +9,7 @@ library(readr)
 library(parallel)
 library(GenomicRanges)
 library(testthat)
+library(pryr)
 
 ###############################################################
 # read all input data
@@ -313,21 +314,26 @@ shuffle_samples <- function(samples, cov_df, chunk) {
   # set of chunks, to be reshuffled in batches to avoid out-of-memory errors
   sample_chunks <- split(samples, ceiling(seq_along(samples) / chunk))
 
-  shuffled_cov_df <- lapply(
+  shuffled_cov_df <- mclapply(
     seq_along(sample_chunks),
     function(chunk_i) {
       one_chunk <- sample_chunks[[chunk_i]]
-      cat(sprintf("Processing chunk %s/%s\n", chunk_i, length(sample_chunks)))
-      cat("Samples involved:\n", paste0(one_chunk, collapse = ", "), "\n\n")
+      cat(sprintf("START -- processing of chunk %s/%s\n", chunk_i, length(sample_chunks)))
+      #cat("Samples involved:\n", paste0(one_chunk, collapse = ", "), "\n\n")
 
-      mclapply(one_chunk, function(ind) {
-          cat(sprintf("Shuffling sites/windows in %s\n", ind))
-          shuffle_one(ind, cov_df, win_list)
-        }, mc.cores = detectCores()
+      res_df <- lapply(one_chunk, function(ind) {
+          #cat(sprintf("Shuffling sites/windows in %s\n", ind))
+          shuffle_one(ind, cov_df[, ..ind], win_list)
+        }
       ) %>%
         do.call(cbind, .)
 
-    }) %>%
+      cat(sprintf("END -- processing of chunk %s/%s\n", chunk_i, length(sample_chunks)))
+
+      res_df
+
+    }, mc.cores = detectCores()
+  ) %>%
     cbind(cov_df[, .(chrom, pos, win_i)], .)
 
   shuffled_cov_df
@@ -338,8 +344,8 @@ run_replicate <- function(rep_i, cov_df) {
   cat("Running replicate #", rep_i, "\n")
 
   # 1. reshuffle windows in each individual
-  shuffled_cov_df <- shuffle_samples(all_samples, cov_df, chunk = 50)
-
+  shuffled_cov_df <- shuffle_samples(all_samples, cov_df, chunk = 60)
+ browser( )
   # 2. compute SNP-ROH coverage in each window
   mean_win_df <- windows_coverage(all_samples, shuffled_cov_df)
 
