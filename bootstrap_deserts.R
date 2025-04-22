@@ -242,25 +242,24 @@ original_win <- windows_gr
 # remove the window which is missing any SNPs
 original_win <- original_win[sort(unique(cov_df$win_i))]
 
-original_win$cov_ancient <- rowMeans(mean_win_df[, .SD, .SDcols = ancient_samples])
-original_win$cov_modern <- rowMeans(mean_win_df[, .SD, .SDcols = modern_samples])
+original_win$mean_ancient <- rowMeans(mean_win_df[, .SD, .SDcols = ancient_samples])
+original_win$mean_modern <- rowMeans(mean_win_df[, .SD, .SDcols = modern_samples])
 original_win$desert <- shared_deserts
 original_win
 
 # just the deserts in ancient individuals
-original_win[original_win$cov_ancient < 0.05]
+original_win[original_win$mean_ancient < 0.05]
 
 # just the deserts in modern individuals
-original_win[original_win$cov_modern < 0.05]
+original_win[original_win$mean_modern < 0.05]
 
 # deserts in both ancient and modern individuals
 original_win[original_win$desert]
 
-# save coordinates of shared ancient & modern deserts
+# finally, save coordinates of shared ancient & modern deserts
 new_deserts <- original_win[original_win$desert]
-as.data.table(new_deserts)[, .(chrom = seqnames, start, end,
-                               mean_ancient = cov_ancient, mean_modern = cov_modern, desert)] %>%
-  fwrite("data/roh_deserts.tsv", sep = "\t", row.names = FALSE)
+as.data.table(new_deserts)[, .(chrom = seqnames, start, end, mean_ancient, mean_modern, desert)] %>%
+  fwrite("new_deserts.tsv", sep = "\t", row.names = FALSE)
 
 ###############################################################
 # Comparison of pre-review and post-review desert windows
@@ -268,7 +267,7 @@ as.data.table(new_deserts)[, .(chrom = seqnames, start, end,
 
 # read coordinates of new deserts
 new_deserts <-
-  fread("data/roh_deserts.tsv")[(desert)] %>%
+  fread("new_deserts.tsv")[(desert)] %>%
   makeGRangesFromDataFrame(keep.extra.columns = TRUE)
 
 # read coordinates of deserts from the pre-review manuscript
