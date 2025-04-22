@@ -188,37 +188,9 @@ expect_true(all(cov_df[!is.na(ancient) & (!ancient), lapply(.SD, function(x) all
 #ggplot(roh_counts) +
 #  geom_jitter(aes(set, roh_coverage, color = set))
 
-
 ###############################################################
-# Bootstrap pipeline
+# Detecting desert status of each window
 ###############################################################
-
-# shuffle sites in a given individual (keeping the sites sitting on the window together),
-# then return a corresponding shuffled vector of TRUE/FALSE/NA ROH status of each site
-# in this individual
-shuffle_one <- function(ind, cov_df, win_list) {
-  # shuffle the list of windows/rows to get new row indices in order to...
-  shuffled_rows <- do.call(rbind, sample(win_list))
-  # ... shuffle the sites in this individual sample
-  shuffled_cov_df[shuffled_rows$row, ..ind]
-  shuffled_cov_df
-}
-
-# shuffle windows (and, therefore, sites) in all given individuals
-shuffle_all <- function(samples, cov_df) {
-  # get a list of rows of the sites table corresponding to each window
-  win_list <- cov_df[, .(win_i, row = 1:.N)] %>% { split(., .$win_i) }
-
-  shuffled_cov_df <- mclapply(
-    samples, function(ind) {
-      cat(sprintf("Shuffling sites/windows in %s\n", ind))
-      shuffle_one(ind, cov_df, win_list)
-    }, mc.cores = detectCores()) %>%
-    do.call(cbind, .) %>%
-    cbind(cov_df[, .(chrom, pos, win_i)], .)
-
-  shuffled_cov_df
-}
 
 # compute the proportion of sites covered by ROH for each window in each sample
 windows_coverage <- function(samples, cov_df) {
@@ -239,7 +211,7 @@ detect_deserts <- function(df, cutoff) {
 }
 
 ###############################################################
-# Testing the computation on the original (unshuffled) data
+# Testing desert detection on the original (unshuffled) data
 ###############################################################
 
 # compute ROH/SNP coverage in each window
@@ -278,7 +250,7 @@ original_win[original_win$cov_modern < 0.05]
 # deserts in both ancient and modern individuals
 original_win[original_win$desert]
 
-# save coordinates of shared deserts
+# save coordinates of shared ancient & modern deserts
 new_deserts <- original_win[original_win$desert]
 as.data.table(new_deserts)[, .(chrom = seqnames, start, end,
                                mean_ancient = cov_ancient, mean_modern = cov_modern, desert)] %>%
@@ -315,6 +287,33 @@ length(overlapping_deserts)
 ###############################################################
 # Bootstrapping itself
 ###############################################################
+
+# shuffle sites in a given individual (keeping the sites sitting on the window together),
+# then return a corresponding shuffled vector of TRUE/FALSE/NA ROH status of each site
+# in this individual
+shuffle_one <- function(ind, cov_df, win_list) {
+  # shuffle the list of windows/rows to get new row indices in order to...
+  shuffled_rows <- do.call(rbind, sample(win_list))
+  # ... shuffle the sites in this individual sample
+  shuffled_cov_df[shuffled_rows$row, ..ind]
+  shuffled_cov_df
+}
+
+# shuffle windows (and, therefore, sites) in all given individuals
+shuffle_all <- function(samples, cov_df) {
+  # get a list of rows of the sites table corresponding to each window
+  win_list <- cov_df[, .(win_i, row = 1:.N)] %>% { split(., .$win_i) }
+
+  shuffled_cov_df <- mclapply(
+    samples, function(ind) {
+      cat(sprintf("Shuffling sites/windows in %s\n", ind))
+      shuffle_one(ind, cov_df, win_list)
+    }, mc.cores = detectCores()) %>%
+    do.call(cbind, .) %>%
+    cbind(cov_df[, .(chrom, pos, win_i)], .)
+
+  shuffled_cov_df
+}
 
 # run a single replicate of the desert inference
 run_replicate <- function(rep_i, cov_df) {
