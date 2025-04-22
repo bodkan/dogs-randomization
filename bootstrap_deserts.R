@@ -305,16 +305,29 @@ shuffle_one <- function(ind, cov_df, win_list) {
 }
 
 # shuffle windows (and, therefore, sites) in all given individuals
-shuffle_all <- function(samples, cov_df) {
+shuffle_samples <- function(samples, cov_df, chunk) {
   # get a list of rows of the sites table corresponding to each window
   win_list <- cov_df[, .(win_i, row = 1:.N)] %>% { split(., .$win_i) }
 
-  shuffled_cov_df <- mclapply(
-    samples, function(ind) {
-      cat(sprintf("Shuffling sites/windows in %s\n", ind))
-      shuffle_one(ind, cov_df, win_list)
-    }, mc.cores = detectCores()) %>%
-    do.call(cbind, .) %>%
+  # chunk a (potentially a very long) vector of sample names into more manageable
+  # set of chunks, to be reshuffled in batches to avoid out-of-memory errors
+  sample_chunks <- split(samples, ceiling(seq_along(samples) / chunk))
+
+  shuffled_cov_df <- lapply(
+    seq_along(sample_chunks),
+    function(chunk_i) {
+      one_chunk <- sample_chunks[[chunk_i]]
+      cat(sprintf("Processing chunk %s/%s\n", chunk_i, length(sample_chunks)))
+      cat("Samples involved:\n", paste0(one_chunk, collapse = ", "), "\n\n")
+
+      mclapply(one_chunk, function(ind) {
+          cat(sprintf("Shuffling sites/windows in %s\n", ind))
+          shuffle_one(ind, cov_df, win_list)
+        }, mc.cores = detectCores()
+      ) %>%
+        do.call(cbind, .)
+
+    }) %>%
     cbind(cov_df[, .(chrom, pos, win_i)], .)
 
   shuffled_cov_df
@@ -325,7 +338,7 @@ run_replicate <- function(rep_i, cov_df) {
   cat("Running replicate #", rep_i, "\n")
 
   # 1. reshuffle windows in each individual
-  shuffled_cov_df <- shuffle_all(all_samples, cov_df)
+  shuffled_cov_df <- shuffle_samples(all_samples, cov_df, chunk = 50)
 
   # 2. compute SNP-ROH coverage in each window
   mean_win_df <- windows_coverage(all_samples, shuffled_cov_df)
