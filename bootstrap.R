@@ -2,7 +2,7 @@ suppressPackageStartupMessages({
 library(data.table)
 library(R.utils)
 library(bit)
-library(qs)
+library(qs2)
 library(ggplot2)
 library(dplyr)
 library(tidyr)
@@ -47,7 +47,10 @@ ancient_samples
 modern_samples <- unique(roh_gr[roh_gr$set == "modern"]$sample)
 
 all_samples <- c(ancient_samples, modern_samples)
-qsave(all_samples, "all_samples.qs")
+
+# look-up table for detecting whether a given sample is ancient or modern
+sample_lookup <- c(rep("ancient", length(ancient_samples)), rep("modern", length(modern_samples)))
+names(sample_lookup) <- all_samples
 
 # ancient sites
 ancient_sites <- fread("data/merged_phased_annotated.allchrom_MAF_0.01_recalibrated_INFO_0.8_all_sites_hom_win_het_1_dogs.hom.summary.gz")
@@ -77,7 +80,7 @@ cat("done.\n")
 
 # assign each site to a window (adding a window index column)
 assign_sites <- function(sites_gr, windows_gr) {
-  # find which window overla each SNP
+  # find which window overlaps each SNP
   hits <- findOverlaps(sites_gr, windows_gr)
 
   # remove SNPs not hitting a window
@@ -108,15 +111,52 @@ add_padding <- function(sites_gr) {
     if (padding_length > 0) {
       padding_gr <- GRanges(seqnames = seqnames(win_gr)[1],
                             ranges = IRanges(start = rep(-1, padding_length), width = 1),
+                            dummy = TRUE,
                             modern = NA, ancient = NA, win_i = win_gr$win_i[1])
     } else {
       padding_gr <- NULL
     }
+    win_gr$dummy <- FALSE
     win_gr <- do.call(c, list(win_gr, padding_gr))
   }) %>% GRangesList(compress = FALSE)
 
   # turn the list of GRanges object into a single GRanges table again
   unlist(snp_windows_padded)
+}
+
+# Score each site in a given individual as TRUE or FALSE depending on
+# whether or not it overlaps with ROH. This code needs a lot of RAM
+# (I ran it on a 750 Gb RAM number cruncher machine).
+overlap_sites <- function(samples, sites_gr, roh_gr) {
+  hits_inds <- mclapply(seq_along(samples), function(i) {
+    ind <- samples[i]
+
+    # extract the flag for whether that individual is ancient or modern
+    set <- roh_gr[roh_gr$sample == ind]$set[1]
+
+    cat(sprintf("Processing %s (%s) [%s/%s]\n", ind, set, i, length(samples)))
+
+    # take a respective subset of all sites (either ancient set or modern set),
+    # which are not 'dummy sites' used for padding windows to the same length
+    subset <- mcols(sites_gr)[[set]]
+    subset <- subset & !is.na(subset)
+
+    # detect which sites in this individual overlap with an ROH -- a site
+    # in the overall data set will be either TRUE or FALSE (depending on whether
+    # or not it overlaps or ROH) or NA (if its a site only available in the modern
+    # set but an ancient individual is being currently processed)
+    roh_hits <- logical(length(subset))
+    hits <- findOverlaps(sites_gr[subset], roh_gr[roh_gr$sample == ind])
+    roh_hits[subset][queryHits(hits)] <- TRUE
+
+    # convert to bit representation
+    roh_hits <- as.bit(roh_hits) %>% split(sites_gr$win_i) %>% lapply(as.bit)
+    roh_hits
+  }, mc.cores = detectCores())
+  # })
+  names(hits_inds) <- samples
+
+  return(hits_inds)
 }
 
 # Score each site in a given individual as TRUE or FALSE depending on
@@ -150,11 +190,12 @@ sites_coverage <- function(samples, sites_gr, roh_gr) {
   }, mc.cores = detectCores())
   names(hits_inds) <- samples
 
-  sites_df <- as.data.table(sites_gr)[, .(chrom = seqnames, pos = start, win_i, modern, ancient)]
+  sites_df <- as.data.table(sites_gr)[, .(chrom = seqnames, pos = start, win_i, dummy, modern, ancient)]
   hits_df <- cbind(sites_df, as.data.table(hits_inds))
 
   return(hits_df)
 }
+
 
 cat("Processing sites... ")
 
@@ -165,7 +206,8 @@ sites_gr <- assign_sites(merged_sites_gr, windows_gr)
 # (and we can reshuffle windows in each individual during bootstrapping)
 sites_gr <- add_padding(sites_gr)
 
-# sanity check -- all windows now must be of the same length
+# sanity check -- all windows now must be of the same length (real SNPs as well
+# as NA 'dummy SNPs')
 expect_true(length(unique(table(sites_gr$win_i))) == 1)
 
 cat("done.\n")
@@ -174,23 +216,50 @@ cat("Assigning sites to ROH segments... ")
 
 # assign TRUE or FALSE to each site in each individual depending on whether or
 # not a given site overlaps an ROH in that individual
-if (!file.exists("cov_df.qs")) {
-  #cov_df <- sites_coverage(c(ancient_samples[1:3], modern_samples[1:3]), sites_gr, roh_gr)
-  cov_df <- sites_coverage(all_samples, sites_gr, roh_gr)
-  # cache the table to make things a little faster to iterate on
-  qsave(cov_df, "cov_df.qs", preset = "high")
+if (!file.exists("roh_overlaps.qs")) {
+  roh_overlaps <- overlap_sites(all_samples, sites_gr, roh_gr)
+  cov_df <- sites_coverage(all_samples[1:10], sites_gr, roh_gr)
+  qs_save(roh_overlaps, "roh_overlaps.qs")
 } else {
-  cov_df <- qread("cov_df.qs")
+  roh_overlaps <- qs_read("roh_overlaps.qs")
 }
 
-# only ancient samples have NA values
-expect_true(all(cov_df[!is.na(modern), lapply(.SD, function(x) any(is.na(x))), .SDcols = ancient_samples]))
-# no modern sample has a NA value
-expect_true(all(cov_df[!is.na(modern), lapply(.SD, function(x) all(!is.na(x))), .SDcols = modern_samples]))
-# all ancient samples are NA at modern-only sites
-expect_true(all(cov_df[!is.na(ancient) & (!ancient), lapply(.SD, function(x) all(is.na(x))), .SDcols = ancient_samples]))
-
 cat("done.\n")
+
+# convert dummy/modern/ancient TRUE/FALSE columns from a data frame format (inefficient
+# for massive-scale parallel processing during bootstrap, even when stored as data.table)
+# to lists of window-based bit-masks -- note that we have to store the dummy-or-not status
+# for each site as a TRUE/FALSE bit mask because bit vectors don't allow NA values (whether
+# or not is any site in any individual a dummy site would be indicated by an NA value in
+# that individual's data.table column)
+masks <- as.data.table(sites_gr)[, .(index = 1:.N, win_i, dummy, ancient, modern)] %>%
+  split(., .$win_i) %>%
+  lapply(function(win_df) {
+    with(win_df,
+         list(
+           win_i = win_i,
+           dummy = as.bit(dummy),
+           ancient = as.bit(ancient),
+           modern = as.bit(modern)
+          ))
+  })
+
+###############################################################
+# sanity checking after ROH-assignment, and bit-conversion
+###############################################################
+
+# bit vectors of non-dummy modern sites have the same number as the original table of modern sites
+expect_true(
+  sum(sapply(masks, function(win) sum(!win$dummy & win$modern))) ==
+    length(sites_gr[!sites_gr$dummy & sites_gr$modern])
+)
+
+# bit vectors of non-dummy ancient sites have the same number as the original table of ancient sites
+expect_true(
+  sum(sapply(masks, function(win) sum(!win$dummy & win$ancient))) ==
+    length(sites_gr[!sites_gr$dummy & sites_gr$ancient])
+)
+
 
 # 3. just a visual test that the # of ROHs in ancient vs modern match our expectation
 # TODO: adapt to data.table in a single merged form
@@ -204,15 +273,49 @@ cat("done.\n")
 #ancient_freq <- ancient_freq[pos != -1]
 #ancient_sites <- fread("data/merged_phased_annotated.allchrom_MAF_0.01_recalibrated_INFO_0.8_all_sites_hom_win_het_1_dogs.hom.summary.gz")
 
-
 ###############################################################
 # Detecting desert status of each window
 ###############################################################
 
-# compute the proportion of sites covered by ROH for each window in each sample
+ind <- "AL2571_Iran"
+set <- sample_lookup[ind]
+win_i = 3
+
+cov_df[win_i == 3]
+mean(cov_df[win_i == 3][[ind]], na.rm = TRUE)
+sum(cov_df[win_i == 3][[ind]], na.rm = TRUE) /
+  (sum(!cov_df[win_i == 3][["dummy"]] & cov_df[win_i == 3][[set]]))
+
+
 windows_coverage <- function(samples, cov_df) {
   cov_df[, lapply(.SD, mean, na.rm = TRUE), by = win_i, .SDcols = samples]
 }
+
+# compute the proportion of sites covered by ROH for each window in each sample
+windows_coverage2 <- function(samples, sample_lookup, roh_overlaps, masks) {
+  lapply(samples, function(ind) {
+    cat(ind, "\n")
+    # iterate over each window in a given individual...
+    sapply(seq_along(masks), function(win_i) {
+      # ... extract the TRUE/FALSE status of an ROH overlap in each of its sites ...
+      ind_overlap <- roh_overlaps[[ind]][[win_i]]
+      # ... extract the filter of the dummy status of each site ...
+      dummy <- masks[[win_i]]$dummy
+      # ... as well as the mask determining the ancient or modern status of each site
+      set <- masks[[win_i]][[sample_status[[ind]]]]
+
+      # the number of sites overlapping an ROH in this individual's window are those sites
+      # which are not dummy sites, belong to the ancient/modern set, and overlap ROH
+      sum(ind_overlap) / sum(!dummy & set)
+    })
+  }) %>%
+  # }, mc.cores = detectCores()) %>%
+    as.data.table %>%
+    setNames(samples)
+}
+
+win_shuffles <- lapply(all_samples, function(x) seq_along(masks))
+names(win_shuffles) <- all_samples
 
 # detect deserts in a given set of individuals (df here is a subset of
 # the merged data frame, either a set of ancient individuals or a set of
@@ -231,46 +334,49 @@ detect_deserts <- function(df, cutoff) {
 # Testing desert detection on the original (unshuffled) data
 ###############################################################
 
-## compute ROH/SNP coverage in each window
-#mean_win_df <- windows_coverage(all_samples, cov_df)
-#
-## assign desert status to each window (TRUE or FALSE)
-#deserts_ancient <- detect_deserts(mean_win_df[, ..ancient_samples], cutoff = 0.05)
-#deserts_modern <- detect_deserts(mean_win_df[, ..modern_samples], cutoff = 0.05)
-#
-## count the deserts
-#sum(deserts_ancient)
-## 2677
-#sum(deserts_modern)
-## 212
-#shared_deserts <- deserts_ancient & deserts_modern
-#sum(shared_deserts)
-## 159
-#
-## for debugging purposes, add ROH frequencies for each window (in ancient and
-## modern individuals) to the original table of windows for easier reference
-#original_win <- windows_gr
-## remove the window which is missing any SNPs
-#original_win <- original_win[sort(unique(cov_df$win_i))]
-#
-#original_win$mean_ancient <- rowMeans(mean_win_df[, .SD, .SDcols = ancient_samples])
-#original_win$mean_modern <- rowMeans(mean_win_df[, .SD, .SDcols = modern_samples])
-#original_win$desert <- shared_deserts
-#original_win
-#
-## just the deserts in ancient individuals
-#original_win[original_win$mean_ancient < 0.05]
-#
-## just the deserts in modern individuals
-#original_win[original_win$mean_modern < 0.05]
-#
-## deserts in both ancient and modern individuals
-#original_win[original_win$desert]
-#
-## finally, save coordinates of shared ancient & modern deserts
-#new_deserts <- original_win[original_win$desert]
-#as.data.table(new_deserts)[, .(chrom = seqnames, start, end, mean_ancient, mean_modern, desert)] %>%
-#  fwrite("new_deserts.tsv", sep = "\t", row.names = FALSE)
+# compute ROH/SNP coverage in each window
+mean_win_df <- windows_coverage(all_samples[1:10], cov_df)
+mean_win_df2 <- windows_coverage2(all_samples[1:10], sample_lookup, roh_overlaps, masks)
+
+mean_win_df <- windows_coverage2(all_samples[1:10], sample_lookup, roh_overlaps, masks)
+
+# assign desert status to each window (TRUE or FALSE)
+deserts_ancient <- detect_deserts(mean_win_df[, ..ancient_samples], cutoff = 0.05)
+deserts_modern <- detect_deserts(mean_win_df[, ..modern_samples], cutoff = 0.05)
+
+# count the deserts
+sum(deserts_ancient)
+# 2677
+sum(deserts_modern)
+# 212
+shared_deserts <- deserts_ancient & deserts_modern
+sum(shared_deserts)
+# 159
+
+# for debugging purposes, add ROH frequencies for each window (in ancient and
+# modern individuals) to the original table of windows for easier reference
+original_win <- windows_gr
+# remove the window which is missing any SNPs
+original_win <- original_win[sort(unique(cov_df$win_i))]
+
+original_win$mean_ancient <- rowMeans(mean_win_df[, .SD, .SDcols = ancient_samples])
+original_win$mean_modern <- rowMeans(mean_win_df[, .SD, .SDcols = modern_samples])
+original_win$desert <- shared_deserts
+original_win
+
+# just the deserts in ancient individuals
+original_win[original_win$mean_ancient < 0.05]
+
+# just the deserts in modern individuals
+original_win[original_win$mean_modern < 0.05]
+
+# deserts in both ancient and modern individuals
+original_win[original_win$desert]
+
+# finally, save coordinates of shared ancient & modern deserts
+new_deserts <- original_win[original_win$desert]
+as.data.table(new_deserts)[, .(chrom = seqnames, start, end, mean_ancient, mean_modern, desert)] %>%
+ fwrite("new_deserts.tsv", sep = "\t", row.names = FALSE)
 
 ###############################################################
 # Comparison of pre-review and post-review desert windows
@@ -344,21 +450,21 @@ suppressPackageStartupMessages({
 cat("Splitting table of ROH sites into a per-individual list... ")
 if (!file.exists("cov_list.qs") || !file.exists("sites_df.qs")) {
   sites_df <- cov_df[, .(chrom, pos, win_i)]
-  qsave(sites_df, "sites_df.qs", preset = "high")
+  qs_save(sites_df, "sites_df.qs", preset = "high")
 
   # split the combined ROH-sites-coverage data table into a list of sites in each
   # individual's window
   cov_list <- mclapply(all_samples, function(s) split(cov_df[[s]], cov_df$win_i), mc.cores = 50)
   names(cov_list) <- all_samples
-  qsave(cov_list, "cov_list.qs", preset = "high")
+  qs_save(cov_list, "cov_list.qs", preset = "high")
 
   # free up memory before the bootstrap
   rm(cov_df)
   gc()
 } else {
-  all_samples <- qread("all_samples.qs")
-  sites_df <- qread("sites_df.qs")
-  cov_list <- qread("cov_list.qs")
+  all_samples <- qs_read("all_samples.qs")
+  sites_df <- qs_read("sites_df.qs")
+  cov_list <- qs_read("cov_list.qs")
 }
 cat("done.\n")
 
