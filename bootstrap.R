@@ -20,13 +20,6 @@ library(pryr)
 
 cat("Reading input data... ")
 
-# coordinates of windows
-windows_gr <- fread("cat data/dogs_allchrom_windows_cov_500kb.txt | cut -f1-3 | sort | uniq") %>%
-  setNames(c("chrom", "start", "end")) %>%
-  mutate(chrom = as.integer(gsub("chr", "", chrom))) %>%
-  arrange(chrom, start, end) %>%
-  makeGRangesFromDataFrame()
-
 # ROH in modern samples
 modern_gr <- fread("data/ref-panel_allchrom_sample-snp_filltags_filter_MAF_0.01_all_sites_hom_win_het_1_dogs.hom")
 modern_gr <- tibble(modern_gr) %>% select(sample = FID, chrom = CHR, start = POS1, end = POS2)
@@ -71,6 +64,18 @@ merged_sites <- left_join(modern_sites, ancient_sites, by = c("chrom", "pos")) %
     ancient = if_else(is.na(ancient), FALSE, ancient)
   )
 merged_sites_gr <- makeGRangesFromDataFrame(merged_sites, keep.extra.columns = TRUE, start.field = "pos", end.field = "pos")
+
+# coordinates of windows
+windows_gr <- fread("cat data/dogs_allchrom_windows_cov_500kb.txt | cut -f1-3 | sort | uniq") %>%
+  setNames(c("chrom", "start", "end")) %>%
+  mutate(chrom = as.integer(gsub("chr", "", chrom))) %>%
+  arrange(chrom, start, end) %>%
+  makeGRangesFromDataFrame()
+
+# remove windows which don't have any SNPs (there's only one of those)
+hits <- findOverlaps(windows_gr, merged_sites_gr)
+setdiff(seq_along(windows_gr), queryHits(hits)) # 3920
+windows_gr <- subsetByOverlaps(windows_gr, merged_sites_gr)
 
 cat("done.\n")
 
