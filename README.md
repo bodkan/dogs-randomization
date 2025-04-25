@@ -15,6 +15,14 @@ BiocManager::install("GenomicRanges")
 to get everything manually without renv, or simply install install individual packages
 from [this](01_detect_deserts.R) or [this](02_bootstrap_deserts.R) script.
 
+The log summary of the entire pipeline is in [`bootstrap.txt`](bootstrap.txt). It
+was produced by the following command (which also generates all associated output
+files and figures):
+
+```
+Rscript bootstrap.R > bootstrap.txt
+```
+
 ## Description of the procedure
 
 The entire workflow is implemented in a single R script:
