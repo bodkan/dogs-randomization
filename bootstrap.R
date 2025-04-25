@@ -71,13 +71,19 @@ windows_gr <- fread("cat data/dogs_allchrom_windows_cov_500kb.txt | cut -f1-3 | 
   arrange(chrom, start, end) %>%
   makeGRangesFromDataFrame()
 
-# remove windows which don't have any SNPs (there's only one of those)
-hits <- findOverlaps(windows_gr, merged_sites_gr)
-setdiff(seq_along(windows_gr), queryHits(hits)) # 3920
-windows_gr <- subsetByOverlaps(windows_gr, merged_sites_gr)
-
 cat("done.\n")
 cat("---\n")
+
+# remove windows which don't have any SNPs (there's only one of those)
+hits <- findOverlaps(windows_gr, merged_sites_gr)
+to_remove <- setdiff(seq_along(windows_gr), queryHits(hits))
+
+cat("Removing windows without any SNPs:\n")
+# 3920
+print(as.data.frame(windows_gr)[to_remove, ])
+cat("---\n")
+
+windows_gr <- subsetByOverlaps(windows_gr, merged_sites_gr)
 
 ###############################################################
 # processing site tables
