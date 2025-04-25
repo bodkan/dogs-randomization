@@ -44,5 +44,5 @@ the `TRUE`/`FALSE` ROH states in each individual not as standard logical R vecto
 for each stat), but as literal bits, where `TRUE` is represented by bit 1, and `FALSE`
 is represented by bit 0. In this more efficient representation, we can store the ROH
 states of 32 genomic sites in the space of one site in the traditional integer-based
-representation of logical values. As a result, a paralelized bootstrapping procedure
+representation of logical values. As a result, a parallelized bootstrapping procedure
 which otherwise crashed a 750 GB computing server can now fit on a standard MacBook.
