@@ -38,8 +38,9 @@ up the process via parallelization.
 
 To make the bootstrapping procedure fast and memory efficient, the program stores
 the `TRUE`/`FALSE` ROH states in each individual not as standard logical R vectors
-(this would imply storing each state as a 32-bit integer, requiring 4 bytes plus
-a _significant_ additional several-fold memory overhead for each logical value),
-but as literal bits, where `TRUE` is represented by bit 1, and `FALSE` is
-represented by bit 0. A parallelized bootstrapping procedure which otherwise crashed
-a 750 GB computing server can then fit on a standard MacBook.
+(this would imply storing each state as a 32-bit integer, requiring 4 bytes of memory
+for each stat), but as literal bits, where `TRUE` is represented by bit 1, and `FALSE`
+is represented by bit 0. In this more efficient representation, we can store the ROH
+states of 32 genomic sites in the space of one site in the traditional integer-based
+representation of logical values. As a result, a paralelized bootstrapping procedure
+which otherwise crashed a 750 GB computing server can now fit on a standard MacBook.
