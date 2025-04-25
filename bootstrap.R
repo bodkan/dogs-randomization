@@ -501,7 +501,7 @@ s <- Sys.time()
 if (!file.exists("replicates.rds")) {
   # run 100 reshuffling bootstrap replicates
   replicates <-
-    lapply(1:2, function(rep_i) run_replicate(rep_i, roh_overlaps, masks)) %>%
+    lapply(1:100, function(rep_i) run_replicate(rep_i, roh_overlaps, masks)) %>%
     do.call(rbind, .)
 
   saveRDS(replicates, "replicates.rds")
