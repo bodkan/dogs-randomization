@@ -162,76 +162,7 @@ expect_true(length(unique(table(sites_gr$win_i))) == 1)
 # detecting sites overlapping ROH in each individual
 ###############################################################
 
-# Score each site in a given individual as TRUE or FALSE depending on
-# whether or not it overlaps with ROH. This code needs a lot of RAM
-# (I ran it on a 750 Gb RAM number cruncher machine).
-overlap_sites1 <- function(samples, sites_gr, roh_gr) {
-  hits_inds <- mclapply(seq_along(samples), function(i) {
-    ind <- samples[i]
-
-    # extract the flag for whether that individual is ancient or modern
-    set <- roh_gr[roh_gr$sample == ind]$set[1]
-
-    #cat(sprintf("Processing %s (%s) [%s/%s]\n", ind, set, i, length(samples)))
-
-    # take a respective subset of all sites (either ancient set or modern set),
-    # which are not 'dummy sites' used for padding windows to the same length
-    subset <- mcols(sites_gr)[[set]]
-    subset <- subset & !is.na(subset)
-
-    # detect which sites in this individual overlap with an ROH -- a site
-    # in the overall data set will be either TRUE or FALSE (depending on whether
-    # or not it overlaps or ROH) or NA (if its a site only available in the modern
-    # set but an ancient individual is being currently processed)
-    roh_hits <- logical(length(subset))
-    hits <- findOverlaps(sites_gr[subset], roh_gr[roh_gr$sample == ind])
-    roh_hits[subset][queryHits(hits)] <- TRUE
-
-    # convert to bit representation
-    roh_hits <- as.bit(roh_hits) %>% split(sites_gr$win_i) %>% lapply(as.bit)
-    roh_hits
-  }, mc.cores = detectCores())
-  # })
-  names(hits_inds) <- samples
-
-  return(hits_inds)
-}
-
-overlap_sites2 <- function(samples, sites_gr, roh_gr) {
-  hits_inds <- mclapply(seq_along(samples), function(i) {
-    ind <- samples[i]
-
-    # extract the flag for whether that individual is ancient or modern
-    set <- roh_gr[roh_gr$sample == ind]$set[1]
-
-    #cat(sprintf("Processing %s (%s) [%s/%s]\n", ind, set, i, length(samples)))
-
-    # take a respective subset of all sites (either ancient set or modern set),
-    # which are not 'dummy sites' used for padding windows to the same length
-    subset <- mcols(sites_gr)[[set]]
-    subset <- subset & !is.na(subset)
-
-    # detect which sites in this individual overlap with an ROH -- a site
-    # in the overall data set will be either TRUE or FALSE (depending on whether
-    # or not it overlaps or ROH) or NA (if its a site only available in the modern
-    # set but an ancient individual is being currently processed) -- note that
-    # the bit-wise representation of TRUE/FALSE here doesn't allow NA values though,
-    # and the dummy-or-not mask will be handled via a dedicated data structure downstream
-    roh_hits <- bit(length(subset))
-    hits <- findOverlaps(sites_gr[subset], roh_gr[roh_gr$sample == ind])
-    roh_hits[which(subset)][queryHits(hits)] <- TRUE
-
-    # split the long bit vector into a list of bit vectors (one element for each window)
-    roh_hits <- split(roh_hits, sites_gr$win_i) %>% lapply(as.bit)
-    roh_hits
-  }, mc.cores = detectCores())
-  # })
-  names(hits_inds) <- samples
-
-  return(hits_inds)
-}
-
-overlap_sites3 <- function(samples, sites_gr, roh_gr) {
+detect_overlaps <- function(samples, sites_gr, roh_gr) {
   hits_inds <- mclapply(seq_along(samples), function(i) {
     ind <- samples[i]
 
@@ -265,98 +196,14 @@ overlap_sites3 <- function(samples, sites_gr, roh_gr) {
   return(hits_inds)
 }
 
-# Score each site in a given individual as TRUE or FALSE depending on
-# whether or not it overlaps with ROH. This code needs a lot of RAM
-# (I ran it on a 750 Gb RAM number cruncher machine).
-sites_coverage <- function(samples, sites_gr, roh_gr) {
-  hits_inds <- mclapply(seq_along(samples), function(i) {
-    ind <- samples[i]
-
-    # extract the flag for whether that individual is ancient or modern
-    set <- roh_gr[roh_gr$sample == ind]$set[1]
-
-    #cat(sprintf("Processing %s (%s) [%s/%s]\n", ind, set, i, length(samples)))
-
-    # take a respective subset of all sites (either ancient set or modern set)
-    subset <- mcols(sites_gr)[[set]]
-    # and only those sites which are not 'dummy sites' used for padding windows
-    # to the same length
-    subset <- subset & !is.na(subset)
-
-    # detect which sites in this individual overlap with an ROH -- a site
-    # in the overall data set will be either TRUE or FALSE (depending on whether
-    # or not it overlaps or ROH) or NA (if its a site only available in the modern
-    # set but an ancient individual is being currently processed)
-    roh_hits <- rep(NA, length(subset))
-    hits <- findOverlaps(sites_gr[subset], roh_gr[roh_gr$sample == ind])
-    roh_hits[subset][queryHits(hits)] <- TRUE
-    roh_hits[subset][-queryHits(hits)] <- FALSE
-
-    roh_hits
-  }, mc.cores = detectCores())
-  names(hits_inds) <- samples
-
-  sites_df <- as.data.table(sites_gr)[, .(chrom = seqnames, pos = start, win_i, dummy, modern, ancient)]
-  hits_df <- cbind(sites_df, as.data.table(hits_inds))
-
-  return(hits_df)
-}
-
-cat("Assigning sites to ROH segments... v0 ")
+cat("Assigning sites to ROH segments... ")
 s <- Sys.time()
 
-# assign TRUE or FALSE to each site in each individual depending on whether or
-# not a given site overlaps an ROH in that individual
-if (!file.exists("cov_df.qs")) {
-  cov_df <- sites_coverage(all_samples, sites_gr, roh_gr)
-  qs_save(cov_df, "cov_df.qs")
+if (!file.exists("roh_overlaps.qs")) {
+  roh_overlaps <- detect_overlaps(all_samples, sites_gr, roh_gr)
+  qs_save(roh_overlaps, "roh_overlaps.qs")
 } else {
-  cov_df <- qs_read("cov_df.qs")
-}
-
-e <- Sys.time()
-cat("done.\n")
-print(e - s)
-cat("---\n")
-
-cat("Assigning sites to ROH segments... v1 ")
-s <- Sys.time()
-
-if (!file.exists("roh_overlaps1.qs")) {
-  roh_overlaps1 <- overlap_sites1(all_samples, sites_gr, roh_gr)
-  qs_save(roh_overlaps1, "roh_overlaps1.qs")
-} else {
-  roh_overlaps1 <- qs_read("roh_overlaps1.qs")
-}
-
-e <- Sys.time()
-cat("done.\n")
-print(e - s)
-cat("---\n")
-
-cat("Assigning sites to ROH segments... v2 ")
-s <- Sys.time()
-
-if (!file.exists("roh_overlaps2.qs")) {
-  roh_overlaps2 <- overlap_sites2(all_samples, sites_gr, roh_gr)
-  qs_save(roh_overlaps2, "roh_overlaps2.qs")
-} else {
-  roh_overlaps2 <- qs_read("roh_overlaps2.qs")
-}
-
-e <- Sys.time()
-cat("done.\n")
-print(e - s)
-cat("---\n")
-
-cat("Assigning sites to ROH segments... v3 ")
-s <- Sys.time()
-
-if (!file.exists("roh_overlaps3.qs")) {
-  roh_overlaps3 <- overlap_sites3(all_samples, sites_gr, roh_gr)
-  qs_save(roh_overlaps3, "roh_overlaps3.qs")
-} else {
-  roh_overlaps3 <- qs_read("roh_overlaps3.qs")
+  roh_overlaps <- qs_read("roh_overlaps.qs")
 }
 
 e <- Sys.time()
@@ -418,12 +265,8 @@ expect_true(
 # Detecting desert status of each window
 ###############################################################
 
-windows_coverage <- function(samples, cov_df) {
-  cov_df[, lapply(.SD, mean, na.rm = TRUE), by = win_i, .SDcols = samples]
-}
-
 # compute the proportion of sites covered by ROH for each window in each sample
-windows_coverage2 <- function(samples, sample_lookup, roh_overlaps, masks) {
+windows_coverage <- function(samples, sample_lookup, roh_overlaps, masks) {
   mclapply(samples, function(ind) {
     # iterate over each window in a given individual...
     sapply(seq_len(length(masks)), function(win_i) {
@@ -466,54 +309,15 @@ detect_deserts <- function(df, cutoff) {
 
 # compute ROH/SNP coverage in each window
 
-cat("Computing ROH coverage in each SNP of each window... v1 ")
-s <- Sys.time()
-
-mean_win_df1 <- windows_coverage2(all_samples, sample_lookup, roh_overlaps1, masks)
-
-e <- Sys.time()
-cat("done.\n")
-print(e - s)
-cat("---\n")
-
-cat("Computing ROH coverage in each SNP of each window... v2 ")
-s <- Sys.time()
-
-mean_win_df2 <- windows_coverage2(all_samples, sample_lookup, roh_overlaps2, masks)
-
-e <- Sys.time()
-cat("done.\n")
-print(e - s)
-cat("---\n")
-
 cat("Computing ROH coverage in each SNP of each window... v3 ")
 s <- Sys.time()
 
-mean_win_df3 <- windows_coverage2(all_samples, sample_lookup, roh_overlaps3, masks)
+mean_win_df <- windows_coverage(all_samples, sample_lookup, roh_overlaps, masks)
 
 e <- Sys.time()
 cat("done.\n")
 print(e - s)
 cat("---\n")
-
-cat("Computing ROH coverage in each SNP of each window... v0 ")
-s <- Sys.time()
-
-mean_win_df0 <- windows_coverage(all_samples, cov_df)
-mean_win_df0[, win_i := NULL]
-
-e <- Sys.time()
-cat("done.\n")
-print(e - s)
-cat("---\n")
-
-all(mean_win_df0 == mean_win_df1)
-all(mean_win_df0 == mean_win_df2)
-all(mean_win_df0 == mean_win_df3)
-
-stop("Stop here")
-
-mean_win_df <- mean_win_df3
 
 # assign desert status to each window (TRUE or FALSE)
 deserts_ancient <- detect_deserts(mean_win_df[, ..ancient_samples], cutoff = 0.05)
@@ -549,7 +353,7 @@ original_win[original_win$desert]
 # finally, save coordinates of shared ancient & modern deserts
 new_deserts <- original_win[original_win$desert]
 as.data.table(new_deserts)[, .(chrom = seqnames, start, end, mean_ancient, mean_modern, desert)] %>%
- fwrite("new_deserts3.tsv", sep = "\t", row.names = FALSE)
+ fwrite("new_deserts.tsv", sep = "\t", row.names = FALSE)
 
 ###############################################################
 # Comparison of pre-review and post-review desert windows
@@ -557,7 +361,7 @@ as.data.table(new_deserts)[, .(chrom = seqnames, start, end, mean_ancient, mean_
 
 # read coordinates of new deserts
 new_deserts <-
-  fread("new_deserts2.tsv")[(desert)] %>%
+  fread("new_deserts.tsv")[(desert)] %>%
   makeGRangesFromDataFrame(keep.extra.columns = TRUE)
 
 # read coordinates of deserts from the pre-review manuscript
@@ -566,18 +370,19 @@ old_deserts <-
         col.names = c("chrom", "start", "end")) %>%
   makeGRangesFromDataFrame(keep.extra.columns = TRUE)
 
-new_deserts
-length(new_deserts)
+cat("Number of new deserts:", length(new_deserts), "\n")
 # 159
 
-old_deserts
-length(old_deserts)
+cat("Number of original deserts:", length(old_deserts), "\n")
 # 124
 
 # detect deserts which were present both pre- and post-review
 overlapping_deserts <- findOverlaps(new_deserts, old_deserts, type = "equal")
-length(overlapping_deserts)
+cat("Number of deserts shared between both sets:", length(overlapping_deserts), "\n")
 # 124 -- old desert windows are all within the new desert windows
+
+stop("Stop here")
+
 
 ###############################################################
 # Bootstrapping
