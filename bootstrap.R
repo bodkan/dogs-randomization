@@ -302,37 +302,37 @@ sites_coverage <- function(samples, sites_gr, roh_gr) {
   return(hits_df)
 }
 
-#cat("Assigning sites to ROH segments... v0 ")
-#s <- Sys.time()
+cat("Assigning sites to ROH segments... v0 ")
+s <- Sys.time()
 
-## assign TRUE or FALSE to each site in each individual depending on whether or
-## not a given site overlaps an ROH in that individual
-#if (!file.exists("cov_df.qs")) {
-#  cov_df <- sites_coverage(all_samples, sites_gr, roh_gr)
-#  qs_save(cov_df, "cov_df.qs")
-#} else {
-#  cov_df <- qs_read("cov_df.qs")
-#}
-#
-#e <- Sys.time()
-#cat("done.\n")
-#print(e - s)
-#cat("---\n")
+# assign TRUE or FALSE to each site in each individual depending on whether or
+# not a given site overlaps an ROH in that individual
+if (!file.exists("cov_df.qs")) {
+  cov_df <- sites_coverage(all_samples, sites_gr, roh_gr)
+  qs_save(cov_df, "cov_df.qs")
+} else {
+  cov_df <- qs_read("cov_df.qs")
+}
 
-#cat("Assigning sites to ROH segments... v1 ")
-#s <- Sys.time()
-#
-#if (!file.exists("roh_overlaps1.qs")) {
-#  roh_overlaps1 <- overlap_sites1(all_samples, sites_gr, roh_gr)
-#  qs_save(roh_overlaps1, "roh_overlaps1.qs")
-#} else {
-#  roh_overlaps1 <- qs_read("roh_overlaps1.qs")
-#}
-#
-#e <- Sys.time()
-#cat("done.\n")
-#print(e - s)
-#cat("---\n")
+e <- Sys.time()
+cat("done.\n")
+print(e - s)
+cat("---\n")
+
+cat("Assigning sites to ROH segments... v1 ")
+s <- Sys.time()
+
+if (!file.exists("roh_overlaps1.qs")) {
+  roh_overlaps1 <- overlap_sites1(all_samples, sites_gr, roh_gr)
+  qs_save(roh_overlaps1, "roh_overlaps1.qs")
+} else {
+  roh_overlaps1 <- qs_read("roh_overlaps1.qs")
+}
+
+e <- Sys.time()
+cat("done.\n")
+print(e - s)
+cat("---\n")
 
 cat("Assigning sites to ROH segments... v2 ")
 s <- Sys.time()
@@ -349,7 +349,20 @@ cat("done.\n")
 print(e - s)
 cat("---\n")
 
-stop("Asdf")
+cat("Assigning sites to ROH segments... v3 ")
+s <- Sys.time()
+
+if (!file.exists("roh_overlaps3.qs")) {
+  roh_overlaps3 <- overlap_sites3(all_samples, sites_gr, roh_gr)
+  qs_save(roh_overlaps3, "roh_overlaps3.qs")
+} else {
+  roh_overlaps3 <- qs_read("roh_overlaps3.qs")
+}
+
+e <- Sys.time()
+cat("done.\n")
+print(e - s)
+cat("---\n")
 
 cat("Generating bit masks for each window... ")
 
@@ -388,7 +401,6 @@ expect_true(
   sum(sapply(masks, function(win) sum(!win$dummy & win$ancient))) ==
     length(sites_gr[!sites_gr$dummy & sites_gr$ancient])
 )
-
 
 # 3. just a visual test that the # of ROHs in ancient vs modern match our expectation
 # TODO: adapt to data.table in a single merged form
@@ -453,40 +465,55 @@ detect_deserts <- function(df, cutoff) {
 ###############################################################
 
 # compute ROH/SNP coverage in each window
-cat("Computing ROH coverage in each SNP of each window... ")
+
+cat("Computing ROH coverage in each SNP of each window... v1 ")
 s <- Sys.time()
 
-mean_win_df1 <- windows_coverage(all_samples, cov_df)
-mean_win_df1[, win_i := NULL]
+mean_win_df1 <- windows_coverage2(all_samples, sample_lookup, roh_overlaps1, masks)
 
 e <- Sys.time()
 cat("done.\n")
 print(e - s)
 cat("---\n")
 
-cat("Computing ROH coverage in each SNP of each window... ")
+cat("Computing ROH coverage in each SNP of each window... v2 ")
 s <- Sys.time()
 
-mean_win_df2 <- windows_coverage2(all_samples, sample_lookup, roh_overlaps1, masks)
+mean_win_df2 <- windows_coverage2(all_samples, sample_lookup, roh_overlaps2, masks)
 
 e <- Sys.time()
 cat("done.\n")
 print(e - s)
 cat("---\n")
 
-cat("Computing ROH coverage in each SNP of each window... ")
+cat("Computing ROH coverage in each SNP of each window... v3 ")
 s <- Sys.time()
 
-mean_win_df3 <- windows_coverage2(all_samples, sample_lookup, roh_overlaps2, masks)
+mean_win_df3 <- windows_coverage2(all_samples, sample_lookup, roh_overlaps3, masks)
 
 e <- Sys.time()
 cat("done.\n")
 print(e - s)
 cat("---\n")
 
-stop("Asdf")
+cat("Computing ROH coverage in each SNP of each window... v0 ")
+s <- Sys.time()
 
-mean_win_df <- mean_win_df2
+mean_win_df0 <- windows_coverage(all_samples, cov_df)
+mean_win_df0[, win_i := NULL]
+
+e <- Sys.time()
+cat("done.\n")
+print(e - s)
+cat("---\n")
+
+all(mean_win_df0 == mean_win_df1)
+all(mean_win_df0 == mean_win_df2)
+all(mean_win_df0 == mean_win_df3)
+
+stop("Stop here")
+
+mean_win_df <- mean_win_df3
 
 # assign desert status to each window (TRUE or FALSE)
 deserts_ancient <- detect_deserts(mean_win_df[, ..ancient_samples], cutoff = 0.05)
@@ -522,7 +549,7 @@ original_win[original_win$desert]
 # finally, save coordinates of shared ancient & modern deserts
 new_deserts <- original_win[original_win$desert]
 as.data.table(new_deserts)[, .(chrom = seqnames, start, end, mean_ancient, mean_modern, desert)] %>%
- fwrite("new_deserts2.tsv", sep = "\t", row.names = FALSE)
+ fwrite("new_deserts3.tsv", sep = "\t", row.names = FALSE)
 
 ###############################################################
 # Comparison of pre-review and post-review desert windows
@@ -612,8 +639,6 @@ if (!file.exists("cov_list.qs") || !file.exists("sites_df.qs")) {
   cov_list <- qs_read("cov_list.qs")
 }
 cat("done.\n")
-
-stop("asdf")
 
 shuffled_cov_df <- shuffle_samples(all_samples, sites_df, cov_list)
 
