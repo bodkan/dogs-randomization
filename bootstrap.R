@@ -314,7 +314,7 @@ detect_deserts <- function(df, cutoff) {
 
 # compute ROH/SNP coverage in each window
 
-cat("Computing ROH coverage in each SNP of each window... ")
+cat("Computing ROH coverage of each SNP in each window... ")
 s <- Sys.time()
 
 mean_win_df <- windows_coverage(all_samples, sample_lookup, roh_overlaps, masks)
@@ -333,8 +333,8 @@ cat("Number of deserts in ancient individuals:", sum(deserts_ancient), "\n")
 # 2677
 cat("Number of deserts in modern individuals:", sum(deserts_modern), "\n")
 # 212
-shared_deserts <- deserts_ancient & deserts_modern
-cat("Number of shared deserts:", sum(shared_deserts), "\n")
+deserts_shared <- deserts_ancient & deserts_modern
+cat("Number of shared deserts:", sum(deserts_shared), "\n")
 # 159
 cat("---\n")
 
@@ -344,7 +344,7 @@ original_win <- windows_gr
 
 original_win$mean_ancient <- rowMeans(mean_win_df[, .SD, .SDcols = ancient_samples])
 original_win$mean_modern <- rowMeans(mean_win_df[, .SD, .SDcols = modern_samples])
-original_win$desert <- shared_deserts
+original_win$desert <- deserts_shared
 
 # just the deserts in ancient individuals
 # original_win[original_win$mean_ancient < 0.05]
@@ -400,42 +400,81 @@ stop("Stop here")
 # Bootstrapping
 ###############################################################
 
-# shuffle sites in a given individual (keeping the sites sitting on the window together),
-# then return a corresponding shuffled vector of TRUE/FALSE/NA ROH status of each site
-# in this individual
-shuffle_one <- function(windows) {
-  shuffled_indices <- sample(seq_along(windows))
-  shuffled_windows <- windows[shuffled_indices]
+# shuffle windows in a given individual (keeping the sites sitting on the window together)
+# -- the windows are stored as lists of bit-encoded vectors, each element of a vector
+#    indicating whether or not does a site overlap an ROH or not in this individual
+#    (TRUE and FALSE states encoded as sparse bit vectors for maximum memory efficiency)
+shuffle_one <- function(windows, shuffled_indices = NULL) {
+  if (is.null(shuffled_indices))
+    shuffled_indices <- sample(seq_along(windows))
+  windows[shuffled_indices]
 }
 
 # shuffle windows (and, therefore, sites) in all given individuals
-shuffle_samples <- function(roh_overlaps, masks) {
-  samples <- names(roh_overlaps)
-
-  ind <- samples[1]
-
-  shuffle_one(roh_overlaps[[ind]], masks)
-
-
-  shuffled_cov_df <- mclapply(cov_list, shuffle_one, win_list = win_list, mc.cores = 20) %>% as.data.table
-
-  shuffled_cov_df
+shuffle_samples <- function(samples, roh_overlaps) {
+  lapply(roh_overlaps, shuffle_one)
 }
 
-shuffled_cov_df <- shuffle_samples(all_samples, sites_df, cov_list)
+cat("Testing that reshuffling works correctly and uses constant amount of memory... ")
+s <- Sys.time()
 
-# run a single replicate of the desert inference
-run_replicate <- function(rep_i, sites_df, cov_list) {
-  cat("Running replicate #", rep_i, "\n")
+test_that("reshuffling works and uses constant amount of memory", {
+  # pick a single individual
+  ind <- sample(all_samples, 1)
+  # reshuffle its sites/windows
+  shuffled_indices <- sample(seq_along(roh_overlaps[[1]]))
+  shuffled_windows <- roh_overlaps[[1]][shuffled_indices]
 
-  # 1. reshuffle windows in each individual
-  shuffled_cov_df <- shuffle_samples(all_samples, sites_df, cov_list)
-  shuffled_cov_df <- cbind(sites_df, shuffled_cov_df)
+  # check that the pointers to bit-encoded vectors (one for each window) point
+  # to the same address in memory (proving that the reshuffling works correctly
+  # and that no memory has been copied in the process, only the reference counter
+  # has been increased by one
+  original_pointers <- sapply(seq_along(windows),
+                              function(i) rlang::obj_address(windows[[i]]))
+  shuffled_pointers <- sapply(seq_along(windows),
+                              function(i) rlang::obj_address(shuffled_windows[[which(shuffled_indices == i)]]))
+  expect_equal(original_pointers, shuffled_pointers)
+})
 
-  # 2. compute SNP-ROH coverage in each window
-  mean_win_df <- windows_coverage(all_samples, shuffled_cov_df)
+cat("done.\n")
+e <- Sys.time()
+print(e - s)
+cat("---\n")
 
-  # 3. detect which ancient vs modern deserts are shared (producing a TRUE/FALSE vector)
+cat("Testing that identity permutation results in identical desert counts... ")
+s <- Sys.time()
+
+test_that("identity permutation results in identical desert counts", {
+  # "reshuffle" windows in each individual to their original positions
+  shuffled_overlaps <- lapply(roh_overlaps, function(windows) {
+    original_indices <- seq_along(windows)
+    shuffle_one(windows, shuffled_indices = original_indices)
+  })
+  # compute the mean ROH/site coverage of each window
+  mean_win_df <- windows_coverage(all_samples, sample_lookup, shuffled_overlaps, masks)
+  # detect windows which are ROH deserts
+  deserts_ancient <- detect_deserts(mean_win_df[, ..ancient_samples], cutoff = 0.05)
+  deserts_modern <- detect_deserts(mean_win_df[, ..modern_samples], cutoff = 0.05)
+  # make sure the identity permutations of windows give the original result
+  expect_true(sum(deserts_ancient & deserts_modern) == 159)
+})
+
+cat("done.\n")
+e <- Sys.time()
+print(e - s)
+cat("---\n")
+
+# run a single bootstrap replicate of the desert inference
+run_replicate <- function(rep_i, roh_overlaps, masks) {
+  cat(paste0("Running replicate #", rep_i, "... "))
+
+  # reshuffle windows in each individual
+  shuffled_overlaps <- shuffle_samples(all_samples, roh_overlaps)
+
+  # compute SNP-ROH coverage in each window
+  mean_win_df <- windows_coverage(all_samples, sample_lookup, shuffled_overlaps, masks)
+
+  # detect which ancient vs modern deserts are shared (producing TRUE/FALSE vectors)
   deserts_ancient <- detect_deserts(mean_win_df[, ..ancient_samples], cutoff = 0.05)
   deserts_modern <- detect_deserts(mean_win_df[, ..modern_samples], cutoff = 0.05)
 
@@ -443,7 +482,7 @@ run_replicate <- function(rep_i, sites_df, cov_list) {
   deserts_shared <- deserts_ancient & deserts_modern
 
   # return the result in a tidy form
-  df <- data.table(
+  result <- data.table(
     rep_i = rep_i,
     win_i = seq_along(deserts_shared),
     desert_ancient = as.integer(deserts_ancient),
@@ -451,62 +490,62 @@ run_replicate <- function(rep_i, sites_df, cov_list) {
     desert_shared = as.integer(deserts_shared)
   )
 
-  return(df)
+  cat("done.\n")
+
+  return(result)
 }
 
-cat("Simulating bootstrap replicates... ")
+cat("Starting the bootstrap procedure... \n")
+s <- Sys.time()
 
-if (!file.exists("bootstrap_reps.rds")) {
-  tstart <- Sys.time()
-
-  # run 100 desert reshuffling bootstrap replicates
-  bootstrap_reps <- lapply(1:100, function(rep_i) run_replicate(rep_i, cov_df)) %>%
+if (!file.exists("replicates.rds")) {
+  # run 100 reshuffling bootstrap replicates
+  replicates <-
+    lapply(1:2, function(rep_i) run_replicate(rep_i, roh_overlaps, masks)) %>%
     do.call(rbind, .)
 
-  tend <- Sys.time()
-
-  cat("Total bootstrap time:", tend - tstart, "\n")
-
-  saveRDS(bootstrap_reps, "bootstrap_reps.rds")
+  saveRDS(replicates, "replicates.rds")
 
 } else {
-  bootstrap_reps <- readRDS("bootstrap_reps.rds")
+  replicates <- readRDS("replicates.rds")
 }
 
-cat("done.\n")
+cat("Bootstrap procedure finished... \n")
+e <- Sys.time()
+print(e - s)
 
-# the bootstrap loop produces a data frame with three columns:
-#   - rep_i: replicate number
-#   - win_i: index of a window
-#   - desert_ancient: whether that window is an 'ancient desert' (1) or not (0)
-#   - desert_modern: whether that window is an 'modern desert' (1) or not (0)
-#   - desert_shared: whether that window is a both ancient and modern desert
-bootstrap_reps
-
-# the observed count of the shared deserts
-observed_count <- length(deserts)
-
-# counts observed in each bootstrapping iteration
-bootstrap_counts <- bootstrap_reps[, .(desert_count = sum(desert_shared)), by = rep_i]
-bootstrap_counts
-
-###############################################################
-# Putting a p-value on the result
-###############################################################
-
-# compute the empirical CDF
-e <- ecdf(bootstrap_counts$desert_count)
-plot(e, xlim = c(0, max(bootstrap_counts$desert_count)))
-abline(v = observed_count, col = "red", lty = 2)
-
-# what's the probability of observing a value as extreme (or more extreme)
-# than the value we observed?
-1 - e(observed_count)
-
-# histogram of the bootstrap counts along with the observed value
-ggplot(bootstrap_counts) +
-  geom_histogram(aes(desert_count)) +
-  geom_vline(xintercept = observed_count, linetype = "dashed", color = "red") +
-  coord_cartesian(xlim = c(0, max(bootstrap_counts$desert_count))) +
-  labs(x = "number of shared deserts", y = "replicate simulations") +
-  theme_minimal()
+# # the bootstrap loop produces a data frame with three columns:
+# #   - rep_i: replicate number
+# #   - win_i: index of a window
+# #   - desert_ancient: whether that window is an 'ancient desert' (1) or not (0)
+# #   - desert_modern: whether that window is an 'modern desert' (1) or not (0)
+# #   - desert_shared: whether that window is a both ancient and modern desert
+# bootstrap_reps
+#
+# # the observed count of the shared deserts
+# observed_count <- length(deserts)
+#
+# # counts observed in each bootstrapping iteration
+# bootstrap_counts <- bootstrap_reps[, .(desert_count = sum(desert_shared)), by = rep_i]
+# bootstrap_counts
+#
+# ###############################################################
+# # Putting a p-value on the result
+# ###############################################################
+#
+# # compute the empirical CDF
+# e <- ecdf(bootstrap_counts$desert_count)
+# plot(e, xlim = c(0, max(bootstrap_counts$desert_count)))
+# abline(v = observed_count, col = "red", lty = 2)
+#
+# # what's the probability of observing a value as extreme (or more extreme)
+# # than the value we observed?
+# 1 - e(observed_count)
+#
+# # histogram of the bootstrap counts along with the observed value
+# ggplot(bootstrap_counts) +
+#   geom_histogram(aes(desert_count)) +
+#   geom_vline(xintercept = observed_count, linetype = "dashed", color = "red") +
+#   coord_cartesian(xlim = c(0, max(bootstrap_counts$desert_count))) +
+#   labs(x = "number of shared deserts", y = "replicate simulations") +
+#   theme_minimal()
