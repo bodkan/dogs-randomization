@@ -498,10 +498,12 @@ run_replicate <- function(rep_i, roh_overlaps, masks) {
 cat("Starting the bootstrap procedure... \n")
 s <- Sys.time()
 
+n_reps <- 100
+
 if (!file.exists("replicates.rds")) {
   # run 100 reshuffling bootstrap replicates
   replicates <-
-    lapply(1:100, function(rep_i) run_replicate(rep_i, roh_overlaps, masks)) %>%
+    lapply(seq_len(n_reps), function(rep_i) run_replicate(rep_i, roh_overlaps, masks)) %>%
     do.call(rbind, .)
 
   saveRDS(replicates, "replicates.rds")
@@ -513,6 +515,9 @@ if (!file.exists("replicates.rds")) {
 cat("Bootstrap procedure finished... \n")
 e <- Sys.time()
 print(e - s)
+cat("Time for a single iteration:\n")
+print((e - s) / n_reps)
+cat("---\n")
 
 # # the bootstrap loop produces a data frame with three columns:
 # #   - rep_i: replicate number
