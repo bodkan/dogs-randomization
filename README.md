@@ -15,20 +15,22 @@ BiocManager::install("GenomicRanges")
 to get everything manually without renv, or simply install install individual packages
 from [this](01_detect_deserts.R) or [this](02_bootstrap_deserts.R) script.
 
-## Description of the results
+## Description of the procedure
 
 The entire workflow is implemented in a single R script:
 [`bootstrap.R`](bootstrap.R).
 
-The R script first finds "ROH desert" windows in a set of ancient and modern dogs,
-using a cutoff "ROH frequency" for each site in a window of 5% in both of those
-groups of individuals.
+Briedfly, the R script first finds "ROH desert" windows in a set of ancient and
+modern dogs, using a cutoff "ROH frequency" for each site in a window of 5% in
+each of those two groups.
 
 It then reshuffles genomic windows in each individual (each window carrying SNPs
 with an assigned `TRUE` or `FALSE` state, depending on whether or not it overlaps
 an ROH in that individual) and performs the same desert-detection procedure on
 each reshuffled data set to establish a bootstrapping distribution of expected
 numbers of shared deserts.
+
+### Bit-encoding of ROH states at each genomic locus
 
 Note that storing the entire data set with `TRUE`/`FALSE` ROH states for each
 of the millions of sites in each of the 552 individuals is quite memory intensive,
