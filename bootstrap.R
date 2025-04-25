@@ -314,7 +314,7 @@ detect_deserts <- function(df, cutoff) {
 
 # compute ROH/SNP coverage in each window
 
-cat("Computing ROH coverage in each SNP of each window... v3 ")
+cat("Computing ROH coverage in each SNP of each window... ")
 s <- Sys.time()
 
 mean_win_df <- windows_coverage(all_samples, sample_lookup, roh_overlaps, masks)
@@ -345,18 +345,17 @@ original_win <- windows_gr
 original_win$mean_ancient <- rowMeans(mean_win_df[, .SD, .SDcols = ancient_samples])
 original_win$mean_modern <- rowMeans(mean_win_df[, .SD, .SDcols = modern_samples])
 original_win$desert <- shared_deserts
-original_win
 
 # just the deserts in ancient individuals
-original_win[original_win$mean_ancient < 0.05]
+# original_win[original_win$mean_ancient < 0.05]
 
 # just the deserts in modern individuals
-original_win[original_win$mean_modern < 0.05]
+# original_win[original_win$mean_modern < 0.05]
 
 # deserts in both ancient and modern individuals
-original_win[original_win$desert]
+# original_win[original_win$desert]
 
-# finally, save coordinates of shared ancient & modern deserts
+# save coordinates of shared ancient & modern deserts
 deserts <- original_win[original_win$desert]
 deserts_df <- as.data.table(deserts)[, .(chrom = seqnames, start, end, mean_ancient, mean_modern, desert)]
 
