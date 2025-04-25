@@ -36,7 +36,6 @@ roh_gr <- makeGRangesFromDataFrame(roh_gr, keep.extra.columns = TRUE)
 
 # extract sample names for downstream use
 ancient_samples <- unique(roh_gr[roh_gr$set == "ancient"]$sample)
-ancient_samples
 modern_samples <- unique(roh_gr[roh_gr$set == "modern"]$sample)
 
 all_samples <- c(ancient_samples, modern_samples)
@@ -324,13 +323,14 @@ deserts_ancient <- detect_deserts(mean_win_df[, ..ancient_samples], cutoff = 0.0
 deserts_modern <- detect_deserts(mean_win_df[, ..modern_samples], cutoff = 0.05)
 
 # count the deserts
-sum(deserts_ancient)
+cat("Number of deserts in ancient individuals:", sum(deserts_ancient), "\n")
 # 2677
-sum(deserts_modern)
+cat("Number of deserts in modern individuals:", sum(deserts_modern), "\n")
 # 212
 shared_deserts <- deserts_ancient & deserts_modern
-sum(shared_deserts)
+cat("Number of shared deserts:", sum(shared_deserts), "\n")
 # 159
+cat("---\n")
 
 # for debugging purposes, add ROH frequencies for each window (in ancient and
 # modern individuals) to the original table of windows for easier reference
@@ -352,8 +352,15 @@ original_win[original_win$desert]
 
 # finally, save coordinates of shared ancient & modern deserts
 deserts <- original_win[original_win$desert]
-as.data.table(deserts)[, .(chrom = seqnames, start, end, mean_ancient, mean_modern, desert)] %>%
- fwrite("deserts.tsv", sep = "\t", row.names = FALSE)
+deserts_df <- as.data.table(deserts)[, .(chrom = seqnames, start, end, mean_ancient, mean_modern, desert)]
+
+cat("Coordinates of shared deserts:\n\n")
+
+print(as.data.frame(deserts_df))
+
+cat("---\n")
+
+fwrite(deserts_df, "deserts.tsv", sep = "\t", row.names = FALSE)
 
 ###############################################################
 # Comparison of pre-review and post-review desert windows
