@@ -403,59 +403,24 @@ stop("Stop here")
 # shuffle sites in a given individual (keeping the sites sitting on the window together),
 # then return a corresponding shuffled vector of TRUE/FALSE/NA ROH status of each site
 # in this individual
-shuffle_one <- function(ind_cov, win_list) {
-  # shuffle the list of windows/rows to get new site indices in order to...
-  shuffled_sites <- do.call(rbind, sample(win_list))
-  # ... shuffle the sites in this individual sample
-  shuffled_ind_cov <- ind_cov[shuffled_sites$row]
-  shuffled_ind_cov
+shuffle_one <- function(windows) {
+  shuffled_indices <- sample(seq_along(windows))
+  shuffled_windows <- windows[shuffled_indices]
 }
 
 # shuffle windows (and, therefore, sites) in all given individuals
-shuffle_samples <- function(samples, sites_df, cov_list) {
-  # get a list of rows of the sites table corresponding to each window
-  win_list <- sites_df[, .(win_i, row = 1:.N)] %>% { split(., .$win_i) }
+shuffle_samples <- function(roh_overlaps, masks) {
+  samples <- names(roh_overlaps)
+
+  ind <- samples[1]
+
+  shuffle_one(roh_overlaps[[ind]], masks)
+
 
   shuffled_cov_df <- mclapply(cov_list, shuffle_one, win_list = win_list, mc.cores = 20) %>% as.data.table
 
   shuffled_cov_df
 }
-
-suppressPackageStartupMessages({
-    library(data.table)
-    library(R.utils)
-    library(qs)
-    library(ggplot2)
-    library(dplyr)
-    library(tidyr)
-    library(tibble)
-    library(readr)
-    library(parallel)
-    library(GenomicRanges)
-    library(testthat)
-    library(pryr)
-})
-
-
-cat("Splitting table of ROH sites into a per-individual list... ")
-if (!file.exists("cov_list.qs") || !file.exists("sites_df.qs")) {
-  sites_df <- cov_df[, .(chrom, pos, win_i)]
-  qs_save(sites_df, "sites_df.qs", preset = "high")
-
-  # split the combined ROH-sites-coverage data table into a list of sites in each
-  # individual's window
-  cov_list <- mclapply(all_samples, function(s) split(cov_df[[s]], cov_df$win_i), mc.cores = 50)
-  names(cov_list) <- all_samples
-  qs_save(cov_list, "cov_list.qs", preset = "high")
-
-  # free up memory before the bootstrap
-  rm(cov_df)
-  gc()
-} else {
-  sites_df <- qs_read("sites_df.qs")
-  cov_list <- qs_read("cov_list.qs")
-}
-cat("done.\n")
 
 shuffled_cov_df <- shuffle_samples(all_samples, sites_df, cov_list)
 
