@@ -351,17 +351,17 @@ original_win[original_win$mean_modern < 0.05]
 original_win[original_win$desert]
 
 # finally, save coordinates of shared ancient & modern deserts
-new_deserts <- original_win[original_win$desert]
-as.data.table(new_deserts)[, .(chrom = seqnames, start, end, mean_ancient, mean_modern, desert)] %>%
- fwrite("new_deserts.tsv", sep = "\t", row.names = FALSE)
+deserts <- original_win[original_win$desert]
+as.data.table(deserts)[, .(chrom = seqnames, start, end, mean_ancient, mean_modern, desert)] %>%
+ fwrite("deserts.tsv", sep = "\t", row.names = FALSE)
 
 ###############################################################
 # Comparison of pre-review and post-review desert windows
 ###############################################################
 
 # read coordinates of new deserts
-new_deserts <-
-  fread("new_deserts.tsv")[(desert)] %>%
+deserts <-
+  fread("deserts.tsv")[(desert)] %>%
   makeGRangesFromDataFrame(keep.extra.columns = TRUE)
 
 # read coordinates of deserts from the pre-review manuscript
@@ -370,14 +370,14 @@ old_deserts <-
         col.names = c("chrom", "start", "end")) %>%
   makeGRangesFromDataFrame(keep.extra.columns = TRUE)
 
-cat("Number of new deserts:", length(new_deserts), "\n")
+cat("Number of new deserts:", length(deserts), "\n")
 # 159
 
 cat("Number of original deserts:", length(old_deserts), "\n")
 # 124
 
 # detect deserts which were present both pre- and post-review
-overlapping_deserts <- findOverlaps(new_deserts, old_deserts, type = "equal")
+overlapping_deserts <- findOverlaps(deserts, old_deserts, type = "equal")
 cat("Number of deserts shared between both sets:", length(overlapping_deserts), "\n")
 # 124 -- old desert windows are all within the new desert windows
 
@@ -507,7 +507,7 @@ cat("done.\n")
 bootstrap_reps
 
 # the observed count of the shared deserts
-observed_count <- length(new_deserts)
+observed_count <- length(deserts)
 
 # counts observed in each bootstrapping iteration
 bootstrap_counts <- bootstrap_reps[, .(desert_count = sum(desert_shared)), by = rep_i]
