@@ -525,34 +525,48 @@ cat("Time for a single iteration:\n")
 print((e - s) / n_reps)
 cat("---\n")
 
-# ###############################################################
-# # Putting a p-value on the result
-# ###############################################################
-#
-# # the observed number of shared deserts
-# observed_count <- length(deserts)
-#
-# # desert numbers observed in each bootstrap iteration
-# bootstrap_counts <- replicates_df[, .(desert_count = sum(desert_shared)), by = rep_i]
-# bootstrap_counts
-#
-# # compute the empirical CDF
-# e <- ecdf(bootstrap_counts$desert_count)
-# pdf("ecdf.pdf", width = 10, height = 7)
-# plot(e, xlim = c(0, max(bootstrap_counts$desert_count)))
-# abline(v = observed_count, col = "red", lty = 2)
-# dev.off()
-#
-# # what's the probability of observing a value as extreme (or more extreme)
-# # than the value we observed?
-# cat("Probability of observing the same (or larger) number of shared deserts:", 1 - e(observed_count))
-#
-# # histogram of the bootstrap counts along with the observed value
-# pdf("bootstrap.pdf", width = 10, height = 7)
-# ggplot(bootstrap_counts) +
-#   geom_histogram(aes(desert_count)) +
-#   geom_vline(xintercept = observed_count, linetype = "dashed", color = "red") +
-#   coord_cartesian(xlim = c(0, max(bootstrap_counts$desert_count))) +
-#   labs(x = "number of shared deserts", y = "replicate simulations") +
-#   theme_minimal()
-# dev.off()
+###############################################################
+# Putting a p-value on the result
+###############################################################
+
+# the observed number of shared deserts
+observed_count <- length(deserts)
+
+# desert numbers observed in each bootstrap iteration
+bootstrap_counts <- replicates_df[, .(desert_count = sum(desert_shared)), by = rep_i]
+bootstrap_counts
+
+# compute and plot the empirical CDF
+e <- ecdf(bootstrap_counts$desert_count)
+
+pdf("ecdf.pdf", width = 10, height = 7)
+
+plot(e, xlim = c(0, max(bootstrap_counts$desert_count)),
+     main = "ECDF of the bootstrapped shared desert counts")
+
+plot(e, xlim = c(0, max(bootstrap_counts$desert_count, observed_count)),
+     main = "ECDF of the bootstrapped shared desert counts (along with the observed count)")
+abline(v = observed_count, col = "red", lty = 2)
+legend(x = 120, y = 0.95, "observed count", fill = "red")
+
+dev.off()
+
+# what's the probability of observing a value as extreme (or more extreme)
+# than the value we observed?
+p_value <- 1 - e(observed_count)
+cat("Probability of observing the same (or larger) number of shared deserts:", p_value)
+
+# histogram of the bootstrap counts along with the observed value
+pdf("bootstrap.pdf", width = 8, height = 5)
+
+ggplot(bootstrap_counts) +
+  geom_histogram(aes(desert_count, color = "bootstrap"), binwidth = 1, fill = "darkgray") +
+  geom_vline(aes(xintercept = observed_count, color = "observed"), linetype = "dashed") +
+  coord_cartesian(xlim = c(0, max(bootstrap_counts$desert_count, observed_count))) +
+  guides(color = guide_legend("")) +
+  scale_color_manual(values = c("observed" = "red", "bootstrap" = "darkgray")) +
+  annotate("label", x = 140, y = 38, label = sprintf("p-value = %s", p_value), color = "red") +
+  labs(x = "number of shared deserts", y = "number of bootstrap replicates") +
+  theme_minimal()
+
+dev.off()
