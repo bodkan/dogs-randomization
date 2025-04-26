@@ -393,8 +393,7 @@ overlapping_deserts <- findOverlaps(deserts, old_deserts, type = "equal")
 cat("Number of deserts shared between both sets:", length(overlapping_deserts), "\n")
 # 124 -- old desert windows are all within the new desert windows
 
-stop("Stop here")
-
+cat("---\n")
 
 ###############################################################
 # Bootstrapping
@@ -418,12 +417,13 @@ shuffle_samples <- function(samples, roh_overlaps) {
 cat("Testing that reshuffling works correctly and uses constant amount of memory... ")
 s <- Sys.time()
 
-test_that("reshuffling works and uses constant amount of memory", {
+{
   # pick a single individual
   ind <- sample(all_samples, 1)
+  windows <- roh_overlaps[[ind]]
   # reshuffle its sites/windows
-  shuffled_indices <- sample(seq_along(roh_overlaps[[1]]))
-  shuffled_windows <- roh_overlaps[[1]][shuffled_indices]
+  shuffled_indices <- sample(seq_along(windows))
+  shuffled_windows <- windows[shuffled_indices]
 
   # check that the pointers to bit-encoded vectors (one for each window) point
   # to the same address in memory (proving that the reshuffling works correctly
@@ -434,7 +434,7 @@ test_that("reshuffling works and uses constant amount of memory", {
   shuffled_pointers <- sapply(seq_along(windows),
                               function(i) rlang::obj_address(shuffled_windows[[which(shuffled_indices == i)]]))
   expect_equal(original_pointers, shuffled_pointers)
-})
+}
 
 cat("done.\n")
 e <- Sys.time()
@@ -444,7 +444,7 @@ cat("---\n")
 cat("Testing that identity permutation results in identical desert counts... ")
 s <- Sys.time()
 
-test_that("identity permutation results in identical desert counts", {
+{
   # "reshuffle" windows in each individual to their original positions
   shuffled_overlaps <- lapply(roh_overlaps, function(windows) {
     original_indices <- seq_along(windows)
@@ -457,7 +457,7 @@ test_that("identity permutation results in identical desert counts", {
   deserts_modern <- detect_deserts(mean_win_df[, ..modern_samples], cutoff = 0.05)
   # make sure the identity permutations of windows give the original result
   expect_true(sum(deserts_ancient & deserts_modern) == 159)
-})
+}
 
 cat("done.\n")
 e <- Sys.time()
@@ -481,7 +481,12 @@ run_replicate <- function(rep_i, roh_overlaps, masks) {
   # detect which reshuffled windows correspond to a shared A vs M desert
   deserts_shared <- deserts_ancient & deserts_modern
 
-  # return the result in a tidy form
+  # return the result in a tidy form -- a data frame with these columns:
+  #   - rep_i: replicate number
+  #   - win_i: index of a window
+  #   - desert_ancient: whether that window is an 'ancient desert' (1) or not (0)
+  #   - desert_modern: whether that window is an 'modern desert' (1) or not (0)
+  #   - desert_shared: whether that window is a desert in both ancient and modern dogs
   result <- data.table(
     rep_i = rep_i,
     win_i = seq_along(deserts_shared),
@@ -500,57 +505,54 @@ s <- Sys.time()
 
 n_reps <- 100
 
-if (!file.exists("replicates.rds")) {
+if (!file.exists("replicates_df.rds")) {
   # run 100 reshuffling bootstrap replicates
-  replicates <-
+  replicates_df <-
     lapply(seq_len(n_reps), function(rep_i) run_replicate(rep_i, roh_overlaps, masks)) %>%
     do.call(rbind, .)
 
-  saveRDS(replicates, "replicates.rds")
+  saveRDS(replicates_df, "replicates_df.rds")
 
 } else {
-  replicates <- readRDS("replicates.rds")
+  replicates_df <- readRDS("replicates_df.rds")
 }
 
 cat("Bootstrap procedure finished... \n")
 e <- Sys.time()
 print(e - s)
+
 cat("Time for a single iteration:\n")
 print((e - s) / n_reps)
 cat("---\n")
 
-# # the bootstrap loop produces a data frame with three columns:
-# #   - rep_i: replicate number
-# #   - win_i: index of a window
-# #   - desert_ancient: whether that window is an 'ancient desert' (1) or not (0)
-# #   - desert_modern: whether that window is an 'modern desert' (1) or not (0)
-# #   - desert_shared: whether that window is a both ancient and modern desert
-# bootstrap_reps
-#
-# # the observed count of the shared deserts
-# observed_count <- length(deserts)
-#
-# # counts observed in each bootstrapping iteration
-# bootstrap_counts <- bootstrap_reps[, .(desert_count = sum(desert_shared)), by = rep_i]
-# bootstrap_counts
-#
 # ###############################################################
 # # Putting a p-value on the result
 # ###############################################################
 #
+# # the observed number of shared deserts
+# observed_count <- length(deserts)
+#
+# # desert numbers observed in each bootstrap iteration
+# bootstrap_counts <- replicates_df[, .(desert_count = sum(desert_shared)), by = rep_i]
+# bootstrap_counts
+#
 # # compute the empirical CDF
 # e <- ecdf(bootstrap_counts$desert_count)
+# pdf("ecdf.pdf", width = 10, height = 7)
 # plot(e, xlim = c(0, max(bootstrap_counts$desert_count)))
 # abline(v = observed_count, col = "red", lty = 2)
+# dev.off()
 #
 # # what's the probability of observing a value as extreme (or more extreme)
 # # than the value we observed?
-# 1 - e(observed_count)
+# cat("Probability of observing the same (or larger) number of shared deserts:", 1 - e(observed_count))
 #
 # # histogram of the bootstrap counts along with the observed value
+# pdf("bootstrap.pdf", width = 10, height = 7)
 # ggplot(bootstrap_counts) +
 #   geom_histogram(aes(desert_count)) +
 #   geom_vline(xintercept = observed_count, linetype = "dashed", color = "red") +
 #   coord_cartesian(xlim = c(0, max(bootstrap_counts$desert_count))) +
 #   labs(x = "number of shared deserts", y = "replicate simulations") +
 #   theme_minimal()
+# dev.off()
