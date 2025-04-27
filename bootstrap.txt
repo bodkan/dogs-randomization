@@ -5,19 +5,19 @@ Removing windows without any SNPs:
 3920       31 29000001 29500000 500000      *
 ---
 Processing sites... done.
-Time difference of 7.10605 secs
+Time difference of 3.38874 mins
 ---
 Assigning sites to ROH segments... done.
-Time difference of 8.123096 secs
+Time difference of 1.581091 mins
 ---
 Generating bit masks for each window... done.
 ---
 Computing ROH coverage of each SNP in each window... done.
-Time difference of 29.88514 secs
+Time difference of 33.53276 secs
 ---
-Number of deserts in ancient individuals: 2677 
-Number of deserts in modern individuals: 212 
-Number of shared deserts: 159 
+Number of deserts in ancient individuals: 2677
+Number of deserts in modern individuals: 212
+Number of shared deserts: 159
 ---
 Coordinates of shared deserts:
 
@@ -182,16 +182,17 @@ Coordinates of shared deserts:
 158    37         1    500000 3.036739e-02 0.0039840637   TRUE
 159    38  23000001  23500000 0.000000e+00 0.0040955882   TRUE
 ---
-Number of new deserts: 159 
-Number of original deserts: 124 
-Number of deserts shared between both sets: 124 
+Number of new deserts: 159
+Number of original deserts: 124
+Number of deserts shared between both sets: 124
+---
 Testing that reshuffling works correctly and uses constant amount of memory... done.
-Time difference of 0.1629138 secs
+Time difference of 0.1791823 secs
 ---
 Testing that identity permutation results in identical desert counts... done.
-Time difference of 30.99754 secs
+Time difference of 36.82236 secs
 ---
-Starting the bootstrap procedure... 
+Starting the bootstrap procedure...
 Running replicate #1... done.
 Running replicate #2... done.
 Running replicate #3... done.
@@ -292,8 +293,9 @@ Running replicate #97... done.
 Running replicate #98... done.
 Running replicate #99... done.
 Running replicate #100... done.
-Bootstrap procedure finished... 
-Time difference of 1.275076 hours
+Bootstrap procedure finished...
+Time difference of 1.31825 hours
 Time for a single iteration:
-Time difference of 0.01275076 hours
+Time difference of 0.0131825 hours
 ---
+Probability of observing the same (or larger) number of shared deserts: 0

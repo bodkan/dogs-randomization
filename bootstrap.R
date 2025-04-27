@@ -538,7 +538,6 @@ bootstrap_counts <- replicates_df[, .(desert_count = sum(desert_shared)), by = r
 # compute and plot the empirical CDF
 e <- ecdf(bootstrap_counts$desert_count)
 
-suppressMessages({
 pdf("ecdf.pdf", width = 10, height = 7)
 
 plot(e, xlim = c(0, max(bootstrap_counts$desert_count)),
@@ -549,15 +548,13 @@ plot(e, xlim = c(0, max(bootstrap_counts$desert_count, observed_count)),
 abline(v = observed_count, col = "red", lty = 2)
 legend(x = 120, y = 0.95, "observed count", fill = "red")
 
-dev.off()
-})
+invisible(dev.off())
 
 # what's the probability of observing a value as extreme (or more extreme)
 # than the value we observed?
 p_value <- 1 - e(observed_count)
 cat("Probability of observing the same (or larger) number of shared deserts:", p_value)
 
-suppressMessages({
 # histogram of the bootstrap counts along with the observed value
 pdf("bootstrap.pdf", width = 8, height = 5)
 
@@ -571,5 +568,4 @@ ggplot(bootstrap_counts) +
   labs(x = "number of shared deserts", y = "number of bootstrap replicates") +
   theme_minimal()
 
-dev.off()
-})
+invisible(dev.off())
