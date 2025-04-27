@@ -1,3 +1,7 @@
+This repository contains code for the bootstrapping procedure supporting the claim of the sharing
+of ROH-depleted "deserts" between ancient and modern dogs presented in
+[Bougiouri _et al_., 2024](https://www.biorxiv.org/content/10.1101/2024.03.15.585179v3).
+
 ## Reproducing the results
 
 1. Clone the repository with `git clone https://github.com/bodkan/dogs-bootstrapping`
@@ -66,3 +70,31 @@ is represented by bit 0. In this more efficient representation, we can store the
 states of 32 genomic sites in the space of one site in the traditional integer-based
 representation of logical values. As a result, a parallelized bootstrapping procedure
 which otherwise crashed a 750 GB computing server can now fit on a standard MacBook.
+
+## Primary data
+
+Here is a brief description of all primary data used in the pipeline. For more details on
+how this was generated, please refer to
+[paper](https://www.biorxiv.org/content/10.1101/2024.03.15.585179v3), the code base supporting
+the study linked in the paper, or contact the corresponding authors.
+
+- coordinates of ROH regions in modern dogs:
+  - `data/ref-panel_allchrom_sample-snp_filltags_filter_MAF_0.01_all_sites_hom_win_het_1_dogs.hom`
+  - used [here](https://github.com/bodkan/dogs-bootstrapping/blob/6f2069394334468b6ff060b9e04337a1937060f3/bootstrap.R#L24)
+
+- coordinates of ROH regions in ancient dogs:
+  - `data/merged_phased_annotated.allchrom_MAF_0.01_recalibrated_INFO_0.8_all_sites_hom_win_het_1_dogs.hom`
+  - used [here](https://github.com/bodkan/dogs-bootstrapping/blob/6f2069394334468b6ff060b9e04337a1937060f3/bootstrap.R#L29)
+  
+- coordinates of "modern dog sites":
+  - `data/ref-panel_allchrom_sample-snp_filltags_filter_MAF_0.01_all_sites_hom_win_het_1_dogs.hom.summary.gz`
+  - used [here](https://github.com/bodkan/dogs-bootstrapping/blob/6f2069394334468b6ff060b9e04337a1937060f3/bootstrap.R#L52)
+  
+- coordinates of "ancient dog imputed sites" (a perfect subset of the modern dog sites):
+  -`data/merged_phased_annotated.allchrom_MAF_0.01_recalibrated_INFO_0.8_all_sites_hom_win_het_1_dogs.hom.summary.gz`
+  - used [here](https://github.com/bodkan/dogs-bootstrapping/blob/6f2069394334468b6ff060b9e04337a1937060f3/bootstrap.R#L48)
+  
+- coordinates of genomic windows to be determined as "ROH deserts" or not:
+  - `data/dogs_allchrom_windows_cov_500kb.txt`
+  - used [here](https://github.com/bodkan/dogs-bootstrapping/blob/6f2069394334468b6ff060b9e04337a1937060f3/bootstrap.R#L68)
+
