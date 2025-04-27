@@ -30,7 +30,7 @@ The results of this script are:
   all data processing steps and bootstrap procedure (`*.qs` and `*.rds` files) as well as
   the coordinates of deserts in [`deserts.tsv`](deserts.tsv),
 - [`ecdf.pdf`](ecdf.pdf) and [`bootstrap.pdf`](bootstrap.pdf) which show the [ECDF](https://en.wikipedia.org/wiki/Empirical_distribution_function)
-  of the bootstrap desert counts and their histogram with a p-value of the observed value,
+  of the bootstrap desert counts and their histogram with a p-value of the observed count,
   respectively.
 
 ## Description of the procedure
@@ -38,7 +38,7 @@ The results of this script are:
 The entire workflow is implemented in a single R script:
 [`bootstrap.R`](bootstrap.R).
 
-Briedfly, the R script first finds "ROH desert" windows in a set of ancient and
+Briefly, the R script first finds "ROH desert" windows in a set of ancient and
 modern dogs, using a cutoff "ROH frequency" for each site in a window of 5% in
 each of those two groups.
 
@@ -46,20 +46,22 @@ It then reshuffles genomic windows in each individual (each window carrying SNPs
 with an assigned `TRUE` or `FALSE` state, depending on whether or not it overlaps
 an ROH in that individual) and performs the same desert-detection procedure on
 each reshuffled data set to establish a bootstrapping distribution of expected
-numbers of shared deserts.
+numbers of shared deserts. The p-value of the observed number of deserts is then
+computed from the [ECDF](https://en.wikipedia.org/wiki/Empirical_distribution_function)
+of the bootstrap values.
 
 ### Bit-encoding of ROH states at each genomic locus
 
 Note that storing the entire data set with `TRUE`/`FALSE` ROH states for each
 of the millions of sites in each of the 552 individuals is quite memory intensive,
-and bootstrapping the tabular data in memory (to avoid extremely expensive disk
+and bootstrapping the tabular data in memory (to avoid repeated, unnecessary disk
 access) would involve a prohibitively large amounts of memory copying when speeding
 up the process via parallelization.
 
-To make the bootstrapping procedure fast and memory efficient, the program stores
-the `TRUE`/`FALSE` ROH states in each individual not as standard logical R vectors
-(this would imply storing each state as a 32-bit integer, requiring 4 bytes of memory
-for each stat), but as literal bits, where `TRUE` is represented by bit 1, and `FALSE`
+To make the bootstrapping procedure fast and memory efficient, we store the `TRUE`/`FALSE`
+ROH states at every site in each individual not as standard logical R vectors
+(this would imply storing each logical state as a 32-bit integer, requiring 4 bytes of memory
+for each site), but as literal bits, where `TRUE` is represented by bit 1, and `FALSE`
 is represented by bit 0. In this more efficient representation, we can store the ROH
 states of 32 genomic sites in the space of one site in the traditional integer-based
 representation of logical values. As a result, a parallelized bootstrapping procedure
