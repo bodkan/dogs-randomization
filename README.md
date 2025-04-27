@@ -73,7 +73,7 @@ which otherwise crashed a 750 GB computing server can now fit on a standard MacB
 
 ## Primary data
 
-Here is a brief description of all primary data used in the pipeline. For more details on
+Here is a brief description of all primary [`data`](data/) used in the pipeline. For more details on
 how this was generated, please refer to
 [paper](https://www.biorxiv.org/content/10.1101/2024.03.15.585179v3), the code base supporting
 the study linked in the paper, or contact the corresponding authors.
