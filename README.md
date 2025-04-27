@@ -13,7 +13,7 @@ BiocManager::install("GenomicRanges")
 ```
 
 to get everything manually without renv, or simply install install individual packages
-from [this](01_detect_deserts.R) or [this](02_bootstrap_deserts.R) script.
+from [this](bootstrap.R) script.
 
 The log summary of the entire pipeline is in [`bootstrap.txt`](bootstrap.txt). It
 was produced by the following command (which also generates all associated output
@@ -22,6 +22,16 @@ files and figures):
 ```
 Rscript bootstrap.R > bootstrap.txt
 ```
+
+The results of this script are:
+
+- the full log information in [`bootstrap.txt`](bootstrap.txt),
+- some intermediate files which can be used to reproduce the results without having to run
+  all data processing steps and bootstrap procedure (`*.qs` and `*.rds` files) as well as
+  the coordinates of deserts in [`deserts.tsv`](deserts.tsv),
+- [`ecdf.pdf`](ecdf.pdf) and [`bootstrap.pdf`](bootstrap.pdf) which show the [ECDF](https://en.wikipedia.org/wiki/Empirical_distribution_function)
+  of the bootstrap desert counts and their histogram with a p-value of the observed value,
+  respectively.
 
 ## Description of the procedure
 
