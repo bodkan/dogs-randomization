@@ -540,16 +540,16 @@ s <- Sys.time()
 
 n_reps <- 100
 
-if (!file.exists("replicates_df.rds")) {
+if (!file.exists("replicates_df.qs")) {
   # run 100 reshuffling bootstrap replicates
   replicates_df <-
     lapply(seq_len(n_reps), function(rep_i) run_replicate(rep_i, roh_overlaps, masks)) %>%
     do.call(rbind, .)
 
-  saveRDS(replicates_df, "replicates_df.rds")
+  qs_save(replicates_df, "replicates_df.qs")
 
 } else {
-  replicates_df <- readRDS("replicates_df.rds")
+  replicates_df <- qs_read("replicates_df.qs")
 }
 
 cat("Bootstrap procedure finished... \n")
