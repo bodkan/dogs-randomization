@@ -292,9 +292,6 @@ windows_coverage <- function(samples, sample_lookup, roh_overlaps, masks) {
     setNames(samples)
 }
 
-#win_shuffles <- lapply(all_samples, function(x) seq_along(masks))
-#names(win_shuffles) <- all_samples
-
 # detect deserts in a given set of individuals (df here is a subset of
 # the merged data frame, either a set of ancient individuals or a set of
 # modern individuals, specified upon calling the function)
@@ -366,6 +363,26 @@ print(as.data.frame(deserts_df))
 cat("---\n")
 
 fwrite(deserts_df, "deserts.tsv", sep = "\t", row.names = FALSE)
+
+###############################################################
+# Comparison of our own and PLINKs ROH overlap frequencies
+###############################################################
+
+states_df <-
+  mclapply(all_samples, function(ind) {
+    set <- sample_lookup[ind]
+    lapply(seq_along(masks), function(win_i) {
+      available_sites <- which(as.logical(!masks[[win_i]]$dummy & masks[[win_i]][[set]]))
+      roh_overlaps[[ind]][[win_i]][available_sites]
+    }) %>% unlist
+  }) %>% as.data.table %>% setNames(all_samples)
+
+coord_df <- as.data.table(sites_gr)[
+  (ancient) & !(dummy), .(chrom = seqnames, pos = start, win_i, modern, ancient, dummy)
+]
+
+states_df <- cbind(coord_df, states_df)
+fwrite(states_df, "states_df.tsv", sep = "\t", row.names = FALSE)
 
 ###############################################################
 # Comparison of pre-review and post-review desert windows
