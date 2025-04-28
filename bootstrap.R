@@ -368,21 +368,39 @@ fwrite(deserts_df, "deserts.tsv", sep = "\t", row.names = FALSE)
 # Comparison of our own and PLINKs ROH overlap frequencies
 ###############################################################
 
-states_df <-
-  mclapply(all_samples, function(ind) {
+# ancient samples
+ancient_states_df <-
+  mclapply(ancient_samples, function(ind) {
     set <- sample_lookup[ind]
     lapply(seq_along(masks), function(win_i) {
       available_sites <- which(as.logical(!masks[[win_i]]$dummy & masks[[win_i]][[set]]))
       roh_overlaps[[ind]][[win_i]][available_sites]
     }) %>% unlist
-  }) %>% as.data.table %>% setNames(all_samples)
+  }) %>% as.data.table %>% setNames(ancient_samples)
 
-coord_df <- as.data.table(sites_gr)[
+ancient_coord_df <- as.data.table(sites_gr)[
   (ancient) & !(dummy), .(chrom = seqnames, pos = start, win_i, modern, ancient, dummy)
 ]
 
-states_df <- cbind(coord_df, states_df)
-fwrite(states_df, "states_df.tsv", sep = "\t", row.names = FALSE)
+ancient_states_df <- cbind(ancient_coord_df, ancient_states_df)
+qs_save(ancient_states_df, "ancient_states_df.qs")
+
+# modern samples
+modern_states_df <-
+  mclapply(modern_samples, function(ind) {
+    set <- sample_lookup[ind]
+    lapply(seq_along(masks), function(win_i) {
+      available_sites <- which(as.logical(!masks[[win_i]]$dummy & masks[[win_i]][[set]]))
+      roh_overlaps[[ind]][[win_i]][available_sites]
+    }) %>% unlist
+  }) %>% as.data.table %>% setNames(modern_samples)
+
+modern_coord_df <- as.data.table(sites_gr)[
+  (modern) & !(dummy), .(chrom = seqnames, pos = start, win_i, modern, ancient, dummy)
+]
+
+modern_states_df <- cbind(modern_coord_df, modern_states_df)
+qs_save(modern_states_df, "modern_states_df.qs")
 
 ###############################################################
 # Comparison of pre-review and post-review desert windows
