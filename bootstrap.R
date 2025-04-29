@@ -387,54 +387,6 @@ cat("---\n")
 fwrite(deserts_df, "deserts.tsv", sep = "\t", row.names = FALSE)
 
 ###############################################################
-# Get data for the comparison of the pre-review winScan code
-###############################################################
-
-# save window information for ancient individuals
-roh_wins_anc_df <- as.data.table(original_win)
-roh_wins_anc_df <- roh_wins_anc_df[, .(chrom = seqnames, start, end, mean_ancient)]
-fwrite(roh_wins_anc_df, "roh_wins_anc_df.tsv", sep = "\t", row.names = FALSE)
-
-# save window information for modern individuals
-roh_wins_mod_df <- as.data.table(original_win)
-roh_wins_mod_df <- roh_wins_mod_df[, .(chrom = seqnames, start, end, mean_modern)]
-fwrite(roh_wins_mod_df, "roh_wins_mod_df.tsv", sep = "\t", row.names = FALSE)
-
-# ancient samples
-ancient_states_df <-
-  mclapply(ancient_samples, function(ind) {
-    set <- sample_lookup[ind]
-    lapply(seq_along(masks), function(win_i) {
-      available_sites <- which(as.logical(!masks[[win_i]]$dummy & masks[[win_i]][[set]]))
-      roh_overlaps[[ind]][[win_i]][available_sites]
-    }) %>% unlist
-  }) %>% as.data.table %>% setNames(ancient_samples)
-
-ancient_coord_df <- as.data.table(sites_gr)[
-  (ancient) & !(dummy), .(chrom = seqnames, pos = start, win_i, modern, ancient, dummy)
-]
-
-ancient_states_df <- cbind(ancient_coord_df, ancient_states_df)
-qs_save(ancient_states_df, "ancient_states_df.qs")
-
-# modern samples
-modern_states_df <-
-  mclapply(modern_samples, function(ind) {
-    set <- sample_lookup[ind]
-    lapply(seq_along(masks), function(win_i) {
-      available_sites <- which(as.logical(!masks[[win_i]]$dummy & masks[[win_i]][[set]]))
-      roh_overlaps[[ind]][[win_i]][available_sites]
-    }) %>% unlist
-  }) %>% as.data.table %>% setNames(modern_samples)
-
-modern_coord_df <- as.data.table(sites_gr)[
-  (modern) & !(dummy), .(chrom = seqnames, pos = start, win_i, modern, ancient, dummy)
-]
-
-modern_states_df <- cbind(modern_coord_df, modern_states_df)
-qs_save(modern_states_df, "modern_states_df.qs")
-
-###############################################################
 # Comparison of pre-review and post-review desert windows
 ###############################################################
 
