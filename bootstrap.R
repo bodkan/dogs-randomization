@@ -607,10 +607,10 @@ pdf("ecdf.pdf", width = 10, height = 7)
 plot(e, xlim = c(0, max(bootstrap_counts$desert_count)),
      main = "ECDF of the bootstrapped shared desert counts")
 
-plot(e, xlim = c(0, max(bootstrap_counts$desert_count, observed_count)),
+plot(e, xlim = c(0, 130),
      main = "ECDF of the bootstrapped shared desert counts (along with the observed count)")
 abline(v = observed_count, col = "red", lty = 2)
-legend(x = 120, y = 0.95, "observed count", fill = "red")
+legend(x = 90, y = 0.95, "observed count", fill = "red")
 
 invisible(dev.off())
 
