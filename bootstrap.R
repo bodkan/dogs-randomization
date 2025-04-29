@@ -74,16 +74,41 @@ windows_gr <- fread("cat data/dogs_allchrom_windows_cov_500kb.txt | cut -f1-3 | 
 cat("done.\n")
 cat("---\n")
 
+cat("Removing windows without any SNPs:\n")
+
 # remove windows which don't have any SNPs (there's only one of those)
 hits <- findOverlaps(windows_gr, merged_sites_gr)
 to_remove <- setdiff(seq_along(windows_gr), queryHits(hits))
-
-cat("Removing windows without any SNPs:\n")
 # 3920
+cat(paste0("(number of windows to remove: ", length(to_remove), ")\n"))
+
 print(as.data.frame(windows_gr)[to_remove, ])
-cat("---\n")
 
 windows_gr <- subsetByOverlaps(windows_gr, merged_sites_gr)
+cat("---\n")
+
+cat("Removing windows with extreme coverages:\n")
+
+# coverage filter
+win_cov_df <- fread("data/dogs_allchrom_windows_cov_500kb.txt")
+names(win_cov_df) <- c("chrom", "start", "end", ".", ".", ".", "coverage", ".", ".")
+
+win_cov_df <- win_cov_df[, .(coverage = sum(coverage) / length(ancient_samples)), by = c("chrom", "start", "end")]
+# remove coverage information for windows without any SNPs first
+win_cov_df <- win_cov_df[-to_remove]
+
+sum_cov_df <- win_cov_df[, .(
+  lower_cov = mean(coverage) - 2 * sd(coverage),
+  upper_cov = mean(coverage) + 2 * sd(coverage)
+)]
+
+valid_windows <- win_cov_df[, coverage > sum_cov_df$lower_cov & coverage < sum_cov_df$upper_cov]
+cat(paste0("(number of windows to remove: ", sum(!valid_windows), ")\n"))
+print(as.data.frame(windows_gr)[!valid_windows, ])
+
+windows_gr <- windows_gr[valid_windows]
+
+cat("---\n")
 
 ###############################################################
 # processing site tables
