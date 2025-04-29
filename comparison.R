@@ -7,8 +7,15 @@ library(GenomicRanges)
 win_cov_df <- fread("data/dogs_allchrom_windows_cov_500kb.txt")
 names(win_cov_df) <- c("chrom", "start", "end", ".", ".", ".", "coverage", ".", ".")
 win_cov_df <- win_cov_df[, .(coverage = sum(coverage) / length(ancient_samples)), by = c("chrom", "start", "end")]
+win_cov_df <- win_cov_df[-3920]
+win_cov_df
 
-sum_cov_df <- win_cov_df[, .(mean = mean(coverage), std = 2 * sd(coverage))]
+sum_cov_df <- win_cov_df[, .(
+  lower_cov = mean(coverage) - 2 * sd(coverage),
+  upper_cov = mean(coverage) + 2 * sd(coverage)
+)]
+sum_cov_df
+
 
 win_cov_df[, valid := coverage > sum_cov_df$mean - 2*sum_cov_df$std & coverage < sum_cov_df$mean + 2*sum_cov_df$std]
 win_cov_df <- win_cov_df[-3920]
@@ -24,59 +31,12 @@ ancient_samples <- setdiff(colnames(anew), c("chrom", "pos", "win_i", "modern", 
 anew <- anew[, .(chrom, pos, n = rowSums(.SD)), .SDcols = ancient_samples]
 anew[, chrom := as.integer(chrom)]
 
-aold[UNAFF > 0]
-anew[n > 0]
-
-matches <- aold[anew, on = .(chrom, pos)]
-
-matches[, mean(UNAFF == n)]
-
-# sites present in the PLINK SNPs but missing in my filtered sites
-mismatches <- anew[aold, on = .(chrom, pos)]
-mismatches
-
-mismatches[UNAFF > 0]
-
-# histogram of the UNAFF ROH counts
-table(mismatches[is.na(n), UNAFF])
-
-# ROH frequencies
-table(mismatches[is.na(n), UNAFF] / length(ancient_samples))
-
-# sites above 5% frequency
-mismatches[is.na(n) & UNAFF / length(ancient_samples) > 0.05]
-# all within 380kb...
-mismatches[is.na(n) & UNAFF / length(ancient_samples) > 0.05, .(min(pos), max(pos), max(pos) - min(pos))]
-# ... in a single spot on chromosome 27
-mismatches[is.na(n) & UNAFF / length(ancient_samples) > 0.05,
-           plot(pos, rep(1, length(pos)), xlim = c(0, 50e6))]
-
-
-
-# finding the missing SNPs
-aold <- makeGRangesFromDataFrame(aold, keep.extra.columns = TRUE, start.field = "pos", end.field = "pos")
-aold
-
-anew <- makeGRangesFromDataFrame(anew, keep.extra.columns = TRUE, start.field = "pos", end.field = "pos")
-anew
-
-# coordinates of windows
-windows_gr <- fread("cat data/dogs_allchrom_windows_cov_500kb.txt | cut -f1-3 | sort | uniq") %>%
-  setNames(c("chrom", "start", "end")) %>%
-  mutate(chrom = as.integer(gsub("chr", "", chrom))) %>%
-  arrange(chrom, start, end) %>%
-  makeGRangesFromDataFrame()
-
-subsetByOverlaps(aold, windows_gr)
-subsetByOverlaps(anew, windows_gr)
-
-
 # sanity checking the winScan function on ancient individuals
 
 library(windowscanr)
 library(assertthat)
 
-hom_sum <- aold %>% as.data.table() %>% dplyr::rename(CHR = seqnames, BP = start)
+hom_sum <- aold %>% as.data.table() %>% dplyr::rename(CHR = chrom, BP = pos)
 hom_sum[, index := 1:nrow(.SD)]
 
 running_roh <- winScan(x = hom_sum,
@@ -98,9 +58,9 @@ running_roh_p$region <- paste(running_roh_p$CHR,":",running_roh_p$win_start,"-",
 
 setDT(running_roh_p)
 
-running_roh_p <- running_roh_p[win_cov_df$valid]
+# running_roh_p <- running_roh_p[win_cov_df$valid]
 
-roh_wins_df <- fread("roh_wins_anc_df.tsv")[win_cov_df$valid]
+roh_wins_df <- fread("roh_wins_anc_df.tsv")#[win_cov_df$valid]
 
 running_roh_p
 roh_wins_df
@@ -114,10 +74,7 @@ roh_wins_df[mean_ancient < 0.05]
 mold <- fread("data/ref-panel_allchrom_sample-snp_filltags_filter_MAF_0.01_all_sites_hom_win_het_1_dogs.hom.summary.gz")
 names(mold) <- c("chrom", ".", "pos", "AFF", "UNAFF")
 
-mold <- makeGRangesFromDataFrame(mold, keep.extra.columns = TRUE, start.field = "pos", end.field = "pos")
-mold
-
-hom_sum_modern <- mold %>% as.data.table() %>% dplyr::rename(CHR = seqnames, BP = start)
+hom_sum_modern <- mold %>% as.data.table() %>% dplyr::rename(CHR = chrom, BP = pos)
 hom_sum_modern[, index := 1:nrow(.SD)]
 
 running_roh_modern <- winScan(x = hom_sum_modern,
@@ -141,14 +98,12 @@ running_roh_modern %>%
 
 setDT(running_roh_p_modern)
 
-running_roh_p_modern <- running_roh_p_modern[win_cov_df$valid]
+#running_roh_p_modern <- running_roh_p_modern[win_cov_df$valid]
 
-roh_wins_mod_df <- fread("roh_wins_mod_df.tsv")[win_cov_df$valid]
+roh_wins_mod_df <- fread("roh_wins_mod_df.tsv")#[win_cov_df$valid]
 
 running_roh_p_modern
 roh_wins_mod_df
-
-plot(running_roh_p_modern$UNAFF_mean, roh_wins_mod_df$mean_modern)
 
 running_roh_p_modern[UNAFF_mean < 0.05]
 roh_wins_mod_df[mean_modern < 0.05]
@@ -167,5 +122,33 @@ old_modern <- makeGRangesFromDataFrame(running_roh_p_modern, seqnames.field = "C
 (old_modern$UNAFF_mean < 0.05) %>% sum
 (old_ancient$UNAFF_mean < 0.05 & old_modern$UNAFF_mean < 0.05) %>% sum
 
+
+
+
+# coverage stuff ------------------------------------------------------------------------------
+
+library(stringr)
+
+all_cov_window <- read.delim("data/dogs_allchrom_windows_cov_500kb.txt", header=FALSE)
+
+all_cov_window$V1 <- as.integer(str_replace_all(all_cov_window$V1, 'chr', ''))
+all_cov_window$region <- paste(all_cov_window$V1,":",all_cov_window$V2,"-",all_cov_window$V3, sep="")
+
+# count number of bam samples used for the window coverage calculation (same number as the imputed dogs or wolves)
+num_ind <- length(ancient_samples)
+
+# Group by region and estimate across all samples the average mean depth for each window:
+all_cov_window %>%
+  group_by(V1, V2, V3) %>%
+  summarize(Mean = sum(V7)/num_ind) -> test
+
+#merge the window coverage with the ROH data (either imputed dogs or imputed wolves)
+joinn <- left_join(running_roh_p, test, by=c("CHR" = "V1", "win_start" = "V2", "win_end" = "V3"))
+
+#get mean and std
+meann_wind <- mean(joinn$Mean)
+stdd_wind <- 2*sd(joinn$Mean)
+low_wind <- meann_wind-stdd_wind
+high_wind <- meann_wind+stdd_wind
 
 
