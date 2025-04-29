@@ -365,8 +365,18 @@ cat("---\n")
 fwrite(deserts_df, "deserts.tsv", sep = "\t", row.names = FALSE)
 
 ###############################################################
-# Comparison of our own and PLINKs ROH overlap frequencies
+# Get data for the comparison of the pre-review winScan code
 ###############################################################
+
+# save window information for ancient individuals
+roh_wins_anc_df <- as.data.table(original_win)
+roh_wins_anc_df <- roh_wins_anc_df[, .(chrom = seqnames, start, end, mean_ancient)]
+fwrite(roh_wins_anc_df, "roh_wins_anc_df.tsv", sep = "\t", row.names = FALSE)
+
+# save window information for modern individuals
+roh_wins_mod_df <- as.data.table(original_win)
+roh_wins_mod_df <- roh_wins_mod_df[, .(chrom = seqnames, start, end, mean_modern)]
+fwrite(roh_wins_mod_df, "roh_wins_mod_df.tsv", sep = "\t", row.names = FALSE)
 
 # ancient samples
 ancient_states_df <-
