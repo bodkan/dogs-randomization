@@ -451,7 +451,7 @@ old_deserts <-
 
 cat("Number of new deserts:", length(deserts), "\n")
 
-cat("Number of original deserts:", length(old_deserts), "\n")
+cat("Number of original (pre-review) deserts:", length(old_deserts), "\n")
 
 # detect deserts which were present both pre- and post-review
 overlapping_deserts <- findOverlaps(deserts, old_deserts, type = "equal")
