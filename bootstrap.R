@@ -352,12 +352,9 @@ deserts_modern <- detect_deserts(mean_win_df[, ..modern_samples], cutoff = 0.05)
 
 # count the deserts
 cat("Number of deserts in ancient individuals:", sum(deserts_ancient), "\n")
-# 2677
 cat("Number of deserts in modern individuals:", sum(deserts_modern), "\n")
-# 212
 deserts_shared <- deserts_ancient & deserts_modern
 cat("Number of shared deserts:", sum(deserts_shared), "\n")
-# 159
 cat("---\n")
 
 # for debugging purposes, add ROH frequencies for each window (in ancient and
@@ -453,15 +450,12 @@ old_deserts <-
   makeGRangesFromDataFrame(keep.extra.columns = TRUE)
 
 cat("Number of new deserts:", length(deserts), "\n")
-# 159
 
 cat("Number of original deserts:", length(old_deserts), "\n")
-# 124
 
 # detect deserts which were present both pre- and post-review
 overlapping_deserts <- findOverlaps(deserts, old_deserts, type = "equal")
 cat("Number of deserts shared between both sets:", length(overlapping_deserts), "\n")
-# 124 -- old desert windows are all within the new desert windows
 
 cat("---\n")
 
@@ -526,7 +520,7 @@ s <- Sys.time()
   deserts_ancient <- detect_deserts(mean_win_df[, ..ancient_samples], cutoff = 0.05)
   deserts_modern <- detect_deserts(mean_win_df[, ..modern_samples], cutoff = 0.05)
   # make sure the identity permutations of windows give the original result
-  expect_true(sum(deserts_ancient & deserts_modern) == 159)
+  expect_true(sum(deserts_ancient & deserts_modern) == 124)
 }
 
 cat("done.\n")
