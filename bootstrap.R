@@ -567,10 +567,10 @@ run_replicate <- function(rep_i, roh_overlaps, masks) {
 cat("Starting the bootstrap procedure... \n")
 s <- Sys.time()
 
-n_reps <- 100
+n_reps <- 1000
 
 if (!file.exists("replicates_df.qs")) {
-  # run 100 reshuffling bootstrap replicates
+  # run 1000 reshuffling bootstrap replicates
   replicates_df <-
     lapply(seq_len(n_reps), function(rep_i) run_replicate(rep_i, roh_overlaps, masks)) %>%
     do.call(rbind, .)
