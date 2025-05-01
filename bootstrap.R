@@ -546,6 +546,7 @@ cat("---\n")
 ###############################################################
 
 # the observed number of shared deserts
+deserts <- fread("deserts.tsv")[(desert)] %>% makeGRangesFromDataFrame(keep.extra.columns = TRUE)
 observed_count <- length(deserts)
 
 # desert numbers observed in each bootstrap iteration
@@ -580,7 +581,7 @@ ggplot(bootstrap_counts) +
   coord_cartesian(xlim = c(0, max(bootstrap_counts$desert_count, observed_count))) +
   guides(color = guide_legend("")) +
   scale_color_manual(values = c("observed" = "red", "bootstrap" = "darkgray")) +
-  annotate("label", x = 140, y = 38, label = sprintf("p-value = %s", p_value), color = "red") +
+  annotate("label", x = 110, y = 700, label = sprintf("p-value = %s", p_value), color = "red") +
   labs(x = "number of shared deserts", y = "number of bootstrap replicates") +
   theme_minimal()
 
