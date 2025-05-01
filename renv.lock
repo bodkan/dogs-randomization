@@ -753,28 +753,6 @@
       "Maintainer": "Jeroen Ooms <jeroenooms@gmail.com>",
       "Repository": "CRAN"
     },
-    "assertthat": {
-      "Package": "assertthat",
-      "Version": "0.2.1",
-      "Source": "Repository",
-      "Title": "Easy Pre and Post Assertions",
-      "Authors@R": "person(\"Hadley\", \"Wickham\", , \"hadley@rstudio.com\", c(\"aut\", \"cre\"))",
-      "Description": "An extension to stopifnot() that makes it easy to declare  the pre and post conditions that you code should satisfy, while also  producing friendly error messages so that your users know what's gone wrong.",
-      "License": "GPL-3",
-      "Imports": [
-        "tools"
-      ],
-      "Suggests": [
-        "testthat",
-        "covr"
-      ],
-      "RoxygenNote": "6.0.1",
-      "Collate": "'assert-that.r' 'on-failure.r' 'assertions-file.r' 'assertions-scalar.R' 'assertions.r' 'base.r' 'base-comparison.r' 'base-is.r' 'base-logical.r' 'base-misc.r' 'utils.r' 'validate-that.R'",
-      "NeedsCompilation": "no",
-      "Author": "Hadley Wickham [aut, cre]",
-      "Maintainer": "Hadley Wickham <hadley@rstudio.com>",
-      "Repository": "CRAN"
-    },
     "bit": {
       "Package": "bit",
       "Version": "4.6.0",
@@ -3412,37 +3390,6 @@
       "Author": "Hadley Wickham [aut, cre], Posit Software, PBC [cph, fnd]",
       "Maintainer": "Hadley Wickham <hadley@posit.co>",
       "Repository": "CRAN"
-    },
-    "windowscanr": {
-      "Package": "windowscanr",
-      "Version": "0.1",
-      "Source": "GitHub",
-      "Title": "Apply functions using sliding windows",
-      "Authors@R": "person(\"Hugo\", \"Tavares\", email = \"hugo.tavares@slcu.cam.ac.uk\", role = c(\"aut\", \"cre\"))",
-      "Description": "windowscanr is a simple package with one main function: `winScan()`. This function  allows one to calculate any statistics across a sliding window. It works on data.frame objects,  and supports both \"rolling\" windows (simply based on the rows of the table) or \"position\" windows  (based on a variable of positions given by the user). It can apply any valid functions given by  the user and calculate windows based on grouping variables.",
-      "Depends": [
-        "R (>= 3.2.3)"
-      ],
-      "License": "GPL-3",
-      "LazyData": "true",
-      "Imports": [
-        "dplyr"
-      ],
-      "Suggests": [
-        "ggplot2",
-        "tidyr",
-        "knitr"
-      ],
-      "VignetteBuilder": "knitr",
-      "RoxygenNote": "6.0.1",
-      "Author": "Hugo Tavares [aut, cre]",
-      "Maintainer": "Hugo Tavares <hugo.tavares@slcu.cam.ac.uk>",
-      "RemoteType": "github",
-      "RemoteHost": "api.github.com",
-      "RemoteUsername": "tavareshugo",
-      "RemoteRepo": "WindowScanR",
-      "RemoteRef": "master",
-      "RemoteSha": "ce21b8b6b044d3ff5c99c04922e9f1d523673907"
     },
     "withr": {
       "Package": "withr",
