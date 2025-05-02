@@ -569,7 +569,7 @@ invisible(dev.off())
 
 # what's the probability of observing a value as extreme (or more extreme)
 # than the value we observed?
-p_value <- 1 - e(observed_count)
+p_value <- mean(bootstrap_counts$desert_count >= observed_count)
 cat("Probability of observing the same (or larger) number of shared deserts:", p_value)
 
 # histogram of the bootstrap counts along with the observed value
