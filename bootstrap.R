@@ -334,13 +334,19 @@ detect_deserts <- function(df, cutoff) {
 # Testing desert detection on the original (unshuffled) data
 ###############################################################
 
-# compute ROH/SNP coverage in each window
+# compute ROH/SNP coverage in each window in each individual
 
 cat("Computing ROH coverage of each SNP in each window... ")
+
 s <- Sys.time()
-
-mean_win_df <- windows_coverage(all_samples, sample_lookup, roh_overlaps, masks)
-
+if (!file.exists("mean_win_df.tsv")) {
+  mean_win_df <- windows_coverage(all_samples, sample_lookup, roh_overlaps, masks)
+  # add back the window indices
+  mean_win_df <- cbind(mean_win_df[, .(win_i = 1:.N)], mean_win_df)
+  fwrite(mean_win_df, "mean_win_df.tsv", sep = "\t", row.names = FALSE)
+} else {
+  mean_win_df <- fread("mean_win_df.tsv")
+}
 e <- Sys.time()
 cat("done.\n")
 print(e - s)
