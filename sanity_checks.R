@@ -20,7 +20,7 @@ mean_win_df[, ..ancient_samples][, 1:5]
 # for starters, let's focus on ancient dogs because it's much smaller (uncomment
 # the second line to get numbers for modern dogs)
 samples <- ancient_samples
-# samples <- modern_samples
+samples <- modern_samples
 
 # get what Fernando calls 'propwins'
 # -- for each sample, compute mean ROH frequency across all of its windows
@@ -39,7 +39,6 @@ abline(v = 0.05, col = "red", lty = 2)
 
 # Our definition of a desert (before the intersection)
 sum(propinds < 0.05)
-
 # This should give the following numbers:
 # Number of deserts in ancient individuals: 2623
 # Number of deserts in modern individuals: 164
