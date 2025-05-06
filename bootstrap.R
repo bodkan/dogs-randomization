@@ -548,6 +548,39 @@ print((e - s) / n_reps)
 cat("---\n")
 
 ###############################################################
+# Investigating intermediate randomization results
+###############################################################
+
+replicate_totals <- replicates_df[, .(
+  count_ancient = sum(desert_ancient),
+  count_modern = sum(desert_modern),
+  count_shared = sum(desert_shared)
+), by = rep_i]
+
+observed_totals <- data.frame(
+  variable = c("count_ancient", "count_modern", "count_shared"),
+  count = c(sum(deserts_ancient), sum(deserts_modern), sum(deserts_shared))
+)
+
+pdf("desert_totals.pdf", width = 10, height = 6)
+melt(desert_totals, id.vars = "rep_i") %>%
+ggplot +
+  geom_jitter(aes(variable, value)) +
+  geom_boxplot(aes(variable, value, fill = variable), alpha = 0.75) +
+  facet_wrap(~ variable, scales = "free") +
+  geom_hline(data = observed_totals, aes(yintercept = count, color = variable)) +
+  ggtitle("Counts of ROH desert windows across replicates")
+melt(desert_totals, id.vars = "rep_i") %>%
+
+ggplot +
+  geom_jitter(aes(variable, value)) +
+  geom_boxplot(aes(variable, value, fill = variable), alpha = 0.75) +
+  facet_wrap(~ variable, scales = "free") +
+  geom_hline(data = observed_totals, aes(yintercept = count, color = variable)) +
+  ggtitle("Counts of ROH desert windows across replicates")
+invisible(dev.off())
+
+###############################################################
 # Putting a p-value on the result
 ###############################################################
 
