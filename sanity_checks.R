@@ -17,14 +17,17 @@ mean_win_df <- fread("https://raw.githubusercontent.com/bodkan/dogs-bootstrappin
 # for instance, this is a subset of this data for the first five ancient samples
 mean_win_df[, ..ancient_samples][, 1:5]
 
-# for starters, let's focus on ancient dogs because it's much smaller
+# for starters, let's focus on ancient dogs because it's much smaller (uncomment
+# the second line to get numbers for modern dogs)
+samples <- ancient_samples
+# samples <- modern_samples
 
 # get what Fernando calls 'propwins'
-# -- for each sample, compute mean ROH frequency across all windows
-(propwins <- colMeans(mean_win_df[, ..ancient_samples]))
+# -- for each sample, compute mean ROH frequency across all of its windows
+(propwins <- colMeans(mean_win_df[, ..samples]))
 # get what Fernando calls 'propinds'
 # -- for each window, compute mean ROH frequency across all individuals
-(propinds <- rowMeans(mean_win_df[, ..ancient_samples]))
+(propinds <- rowMeans(mean_win_df[, ..samples]))
 
 # Fernando's plots, now using the empirical data
 
@@ -36,3 +39,7 @@ abline(v = 0.05, col = "red", lty = 2)
 
 # Our definition of a desert (before the intersection)
 sum(propinds < 0.05)
+
+# This should give the following numbers:
+# Number of deserts in ancient individuals: 2623
+# Number of deserts in modern individuals: 164
