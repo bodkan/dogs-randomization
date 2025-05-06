@@ -185,7 +185,7 @@ print(e - s)
 cat("---\n")
 
 # sanity check -- all windows now must be of the same length (real SNPs as well
-# as NA 'dummy SNPs')
+# as 'NA/dummy' SNPs)
 expect_true(length(unique(table(sites_gr$win_i))) == 1)
 
 ###############################################################
