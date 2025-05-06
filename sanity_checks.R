@@ -11,7 +11,7 @@ modern_samples <- fread("https://raw.githubusercontent.com/bodkan/dogs-bootstrap
 #   - columns are individuals
 #   - each element of the matrix is the proportion of sites in a given window,
 #     in a given individual, covered by an ROH in that individual
-# (I think this is like Fernando's 'matrix' above, except we have a proportion of each window
+# (I think this is like Fernando's 'matrix' data, except we have a proportion of each window
 # covered by an ROH, not a 0/1 value)
 mean_win_df <- fread("https://raw.githubusercontent.com/bodkan/dogs-bootstrapping/refs/heads/main/mean_win_df.tsv")
 # for instance, this is a subset of this data for the first five ancient samples
@@ -22,10 +22,10 @@ mean_win_df[, ..ancient_samples][, 1:5]
 samples <- ancient_samples
 # samples <- modern_samples
 
-# get what Fernando calls 'propwins'
+# get what Fernando calls 'propwins' in his script
 # -- for each sample, compute mean ROH frequency across all of its windows
 (propwins <- colMeans(mean_win_df[, ..samples]))
-# get what Fernando calls 'propinds'
+# get what Fernando calls 'propinds' in his script
 # -- for each window, compute mean ROH frequency across all individuals
 (propinds <- rowMeans(mean_win_df[, ..samples]))
 
