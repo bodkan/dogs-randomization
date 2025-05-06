@@ -20,7 +20,7 @@ mean_win_df[, ..ancient_samples][, 1:5]
 # for starters, let's focus on ancient dogs because it's much smaller (uncomment
 # the second line to get numbers for modern dogs)
 samples <- ancient_samples
-samples <- modern_samples
+# samples <- modern_samples
 
 # get what Fernando calls 'propwins'
 # -- for each sample, compute mean ROH frequency across all of its windows
