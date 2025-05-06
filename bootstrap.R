@@ -576,7 +576,6 @@ ggplot +
   geom_jitter(aes(variable, value)) +
   geom_boxplot(aes(variable, value, fill = variable), alpha = 0.75) +
   facet_wrap(~ variable, scales = "free") +
-  geom_hline(data = observed_totals, aes(yintercept = count, color = variable)) +
   ggtitle("Counts of ROH desert windows across replicates")
 invisible(dev.off())
 
