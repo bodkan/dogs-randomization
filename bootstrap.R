@@ -614,13 +614,12 @@ cat("Probability of observing the same (or larger) number of shared deserts:", p
 pdf("bootstrap.pdf", width = 8, height = 5)
 
 ggplot(bootstrap_counts) +
-  geom_histogram(aes(desert_count, color = "bootstrap"), binwidth = 1, fill = "darkgray") +
+  geom_histogram(aes(desert_count, color = "randomized"), binwidth = 1, fill = "darkgray") +
   geom_vline(aes(xintercept = observed_count, color = "observed"), linetype = "dashed") +
   coord_cartesian(xlim = c(0, max(bootstrap_counts$desert_count, observed_count))) +
   guides(color = guide_legend("")) +
-  scale_color_manual(values = c("observed" = "red", "bootstrap" = "darkgray")) +
-  annotate("label", x = 110, y = 700, label = sprintf("p-value ~ %s", p_value), color = "red") +
-  labs(x = "number of shared deserts", y = "number of bootstrap replicates") +
+  scale_color_manual(values = c("observed" = "red", "randomized" = "darkgray")) +
+  labs(x = "number of shared deserts", y = "number of randomized replicates") +
   theme_minimal()
 
 invisible(dev.off())
